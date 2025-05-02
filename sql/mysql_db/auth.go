@@ -19,7 +19,9 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/hex"
+	"fmt"
 	"net"
+	"time"
 
 	"github.com/dolthub/vitess/go/mysql"
 	"github.com/sirupsen/logrus"
@@ -32,7 +34,7 @@ import (
 // what auth protocol it prefers, as part of the auth handshake, it is controlled
 // by this constant. When a new user is created, if no auth plugin is specified, this
 // auth method will be used.
-const DefaultAuthMethod = mysql.MysqlNativePassword
+const DefaultAuthMethod = mysql.MysqlClearPassword
 
 // authServer implements the mysql.AuthServer interface. It exposes configured AuthMethod implementations
 // that the auth framework in Vitess uses to negotiate authentication with a client. By default, authServer
@@ -50,12 +52,12 @@ var _ mysql.AuthServer = (*authServer)(nil)
 // method, that allows integrators to extend authentication to allow additional schemes.
 func newAuthServer(db *MySQLDb) *authServer {
 	// mysql_native_password auth support
-	nativePasswordAuthMethod := mysql.NewMysqlNativeAuthMethod(
+	_ = mysql.NewMysqlNativeAuthMethod(
 		&nativePasswordHashStorage{db: db},
 		newUserValidator(db, mysql.MysqlNativePassword))
 
 	// caching_sha2_password auth support
-	cachingSha2PasswordAuthMethod := mysql.NewSha2CachingAuthMethod(
+	_ = mysql.NewSha2CachingAuthMethod(
 		&noopCachingStorage{db: db},
 		&sha2PlainTextStorage{db: db},
 		newUserValidator(db, mysql.CachingSha2Password))
@@ -68,8 +70,11 @@ func newAuthServer(db *MySQLDb) *authServer {
 
 	return &authServer{
 		authMethods: []mysql.AuthMethod{
-			nativePasswordAuthMethod,
-			cachingSha2PasswordAuthMethod,
+			//nativePasswordAuthMethod,
+			//cachingSha2PasswordAuthMethod,
+
+			// Note - Only expose mysql_clear_password
+			// $ mysql -P3307 -h127.0.0.1 -uUser -pPassword -Ddb --default-auth mysql_clear_password --enable-cleartext-plugin
 			extendedAuthMethod,
 		},
 	}
@@ -284,6 +289,36 @@ type extendedAuthUserValidator struct {
 
 var _ mysql.UserValidator = (*extendedAuthUserValidator)(nil)
 
+func (uv extendedAuthUserValidator) getUser(user string, host string, roleSearch bool) *User {
+	db := uv.db
+	rd := db.Reader()
+	defer rd.Close()
+	return db.GetUser(rd, user, host, false)
+}
+
+func (uv extendedAuthUserValidator) createUser(user string, host string) *User {
+	// TODO: should be control this with some flag?
+	db := uv.db
+	ed := db.Editor()
+	defer ed.Close()
+	db.SetEnabled(true)
+	userEntry := &User{
+		User:                user,
+		Host:                host,
+		PrivilegeSet:        NewPrivilegeSetWithAllPrivileges(),
+		Plugin:              "mysql_clear_password",
+		AuthString:          "",
+		PasswordLastChanged: time.Unix(1, 0).UTC(),
+		Locked:              false,
+		Attributes:          nil,
+		IsRole:              false,
+		IsSuperUser:         false,
+	}
+	ed.PutUser(userEntry)
+	fmt.Printf("New user created %s@%s", user, host)
+	return userEntry
+}
+
 // HandleUser implements the mysql.UserValidator interface.
 func (uv extendedAuthUserValidator) HandleUser(user string, remoteAddr net.Addr) bool {
 	// If the mysql database is not enabled, then we don't have user information, so
@@ -299,14 +334,16 @@ func (uv extendedAuthUserValidator) HandleUser(user string, remoteAddr net.Addr)
 	}
 
 	db := uv.db
-	rd := db.Reader()
-	defer rd.Close()
 
 	if !db.Enabled() {
 		return true
 	}
-	userEntry := db.GetUser(rd, user, host, false)
+	userEntry := uv.getUser(user, host, false)
 	if userEntry == nil {
+		// Okay, so we have a new potential DataOS user hitting this service.
+		// We create a record for this user with mysql_clear_password plugin, so
+		// we can accept Heimdall apikey as password and get it authorized!
+		userEntry = uv.createUser(user, host)
 		return false
 	}
 

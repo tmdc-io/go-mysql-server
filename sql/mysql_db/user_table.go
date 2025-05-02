@@ -220,7 +220,7 @@ func addSuperUser(ed *Editor, username string, host string, authString string) {
 		User:                username,
 		Host:                host,
 		PrivilegeSet:        NewPrivilegeSetWithAllPrivileges(),
-		Plugin:              "mysql_native_password",
+		Plugin:              "mysql_clear_password",
 		AuthString:          authString,
 		PasswordLastChanged: time.Unix(1, 0).UTC(),
 		Locked:              false,
