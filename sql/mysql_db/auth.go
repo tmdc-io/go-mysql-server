@@ -51,10 +51,6 @@ var _ mysql.AuthServer = (*authServer)(nil)
 // mysql_native_password support, as well as an extensible auth method, built on the mysql_clear_password auth
 // method, that allows integrators to extend authentication to allow additional schemes.
 func newAuthServer(db *MySQLDb) *authServer {
-	// Note - Heimdall requires DataOS apikey or JWT token for authorization!
-	// We need to pass this apikey from client to server, without one-way encryption.
-	// Hence, we have to use mysql_clear_password auth pluing ONLY!
-
 	// mysql_native_password auth support
 	_ = mysql.NewMysqlNativeAuthMethod(
 		&nativePasswordHashStorage{db: db},
@@ -76,6 +72,9 @@ func newAuthServer(db *MySQLDb) *authServer {
 		authMethods: []mysql.AuthMethod{
 			//nativePasswordAuthMethod,
 			//cachingSha2PasswordAuthMethod,
+
+			// Note - Only expose mysql_clear_password
+			// $ mysql -P3307 -h127.0.0.1 -uUser -pPassword -Ddb --default-auth mysql_clear_password --enable-cleartext-plugin
 			extendedAuthMethod,
 		},
 	}
