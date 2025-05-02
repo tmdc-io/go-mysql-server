@@ -2949,7 +2949,7 @@ var systemVars = map[string]sql.SystemVariable{
 		Dynamic:           false,
 		SetVarHintApplies: false,
 		Type:              types.NewSystemStringType("version_comment"),
-		Default:           "Dolt",
+		Default:           "DataOS",
 	},
 	"version_compile_machine": &sql.MysqlSystemVariable{
 		Name:              "version_compile_machine",
