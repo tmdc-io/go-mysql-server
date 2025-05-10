@@ -19,7 +19,6 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/hex"
-	"fmt"
 	"net"
 	"time"
 
@@ -315,7 +314,7 @@ func (uv extendedAuthUserValidator) createUser(user string, host string) *User {
 		IsSuperUser:         false,
 	}
 	ed.PutUser(userEntry)
-	fmt.Printf("New user created %s@%s", user, host)
+	logrus.Infof("New user created %s@%s", user, host)
 	return userEntry
 }
 
@@ -344,7 +343,7 @@ func (uv extendedAuthUserValidator) HandleUser(user string, remoteAddr net.Addr)
 		// We create a record for this user with mysql_clear_password plugin, so
 		// we can accept Heimdall apikey as password and get it authorized!
 		userEntry = uv.createUser(user, host)
-		return false
+		return true
 	}
 
 	for pluginName, _ := range db.plugins {
