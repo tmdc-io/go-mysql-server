@@ -49,7 +49,7 @@ func (p *NoopPersister) Persist(ctx *sql.Context, data []byte) error {
 }
 
 type PlaintextAuthPlugin interface {
-	Authenticate(db *MySQLDb, user string, userEntry *User, pass string) (bool, error)
+	Authenticate(db *MySQLDb, user string, userEntry *User, pass string, remoteAddr net.Addr) (bool, error)
 }
 
 // MySQLDb are the collection of tables that are in the MySQL database

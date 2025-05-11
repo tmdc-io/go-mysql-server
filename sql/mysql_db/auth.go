@@ -268,7 +268,7 @@ func (f extendedAuthPlainTextStorage) UserEntryWithPassword(userCerts []*x509.Ce
 			"Access denied for user '%v'; auth plugin %s not registered with server", user, authPluginName)
 	}
 
-	authed, err := authplugin.Authenticate(db, user, userEntry, password)
+	authed, err := authplugin.Authenticate(db, user, userEntry, password, remoteAddr)
 	if err != nil {
 		return nil, mysql.NewSQLError(mysql.ERAccessDeniedError, mysql.SSAccessDeniedError,
 			"Access denied for user '%v': %v", user, err)
