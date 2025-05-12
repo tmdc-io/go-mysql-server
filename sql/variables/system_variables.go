@@ -17,6 +17,7 @@ package variables
 import (
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -183,6 +184,15 @@ func InitSystemVariables() {
 // TODO: get rid of me, make this construction the responsibility of the engine
 func init() {
 	InitSystemVariables()
+}
+
+// getEnvDefault retrieves the value of an environment variable or returns a default if not set.
+func getEnvDefault(key, defaultValue string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		return defaultValue
+	}
+	return value
 }
 
 // systemVars is the internal collection of all MySQL system variables according to the following pages:
@@ -2941,7 +2951,7 @@ var systemVars = map[string]sql.SystemVariable{
 		Dynamic:           false,
 		SetVarHintApplies: false,
 		Type:              types.NewSystemStringType("version"),
-		Default:           "8.0.23",
+		Default:           getEnvDefault("VERSION", "8.0.23"),
 	},
 	"version_comment": &sql.MysqlSystemVariable{
 		Name:              "version_comment",
@@ -2949,7 +2959,7 @@ var systemVars = map[string]sql.SystemVariable{
 		Dynamic:           false,
 		SetVarHintApplies: false,
 		Type:              types.NewSystemStringType("version_comment"),
-		Default:           "Dolt",
+		Default:           getEnvDefault("VERSION_COMMENT", "DataOS"),
 	},
 	"version_compile_machine": &sql.MysqlSystemVariable{
 		Name:              "version_compile_machine",
