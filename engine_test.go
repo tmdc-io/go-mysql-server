@@ -139,9 +139,10 @@ func TestBindingsToExprs(t *testing.T) {
 		},
 	}
 
+	ctx := sql.NewEmptyContext()
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			res, err := bindingsToExprs(c.Bindings)
+			res, err := bindingsToExprs(ctx, c.Bindings)
 			if !c.Err {
 				require.NoError(t, err)
 				require.Equal(t, c.Result, res)
@@ -232,7 +233,7 @@ func TestTrackProcess(t *testing.T) {
 
 	iter, err := rowexec.DefaultBuilder.Build(ctx, result, nil)
 	require.NoError(err)
-	iter, _ = rowexec.FinalizeIters(ctx, result, nil, iter)
+	iter, _, err = rowexec.FinalizeIters(ctx, result, nil, iter)
 	require.NoError(err)
 	_, err = sql.RowIterToRows(ctx, iter)
 	require.NoError(err)

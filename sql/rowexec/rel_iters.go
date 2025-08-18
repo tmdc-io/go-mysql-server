@@ -351,7 +351,7 @@ func (d *declareVariablesIter) Next(ctx *sql.Context) (sql.Row, error) {
 		return nil, err
 	}
 	for _, varName := range d.Names {
-		if err := d.Pref.InitializeVariable(varName, d.Type, defaultVal); err != nil {
+		if err := d.Pref.InitializeVariable(ctx, varName, d.Type, defaultVal); err != nil {
 			return nil, err
 		}
 	}
@@ -446,7 +446,7 @@ func (r *recursiveCteIter) Next(ctx *sql.Context) (sql.Row, error) {
 
 		var key uint64
 		if r.deduplicate {
-			key, _ = sql.HashOf(row)
+			key, _ = sql.HashOf(ctx, row)
 			if k, _ := r.cache.Get(key); k != nil {
 				// skip duplicate
 				continue

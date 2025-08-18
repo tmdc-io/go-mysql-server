@@ -120,9 +120,8 @@ func (b *Builder) buildInsert(inScope *scope, i *ast.Insert) (outScope *scope) {
 		combinedScope.insertColumnAliases = inScope.insertColumnAliases
 		for i, c := range destScope.cols {
 			combinedScope.newColumn(c)
-			if len(srcScope.cols) == len(destScope.cols) {
-				combinedScope.newColumn(srcScope.cols[i])
-			} else {
+			// if the srcScope is empty, it is a values statement
+			if len(srcScope.cols) == 0 {
 				// The to-be-inserted values can be referenced via the provided alias.
 				c.table = combinedScope.insertTableAlias
 				if len(combinedScope.insertColumnAliases) > 0 {
@@ -131,6 +130,10 @@ func (b *Builder) buildInsert(inScope *scope, i *ast.Insert) (outScope *scope) {
 					c.originalCol = aliasColumnName
 				}
 				combinedScope.newColumn(c)
+				continue
+			}
+			if i < len(srcScope.cols) {
+				combinedScope.newColumn(srcScope.cols[i])
 			}
 		}
 		onDupExprs = b.buildOnDupUpdateExprs(combinedScope, destScope, ast.AssignmentExprs(i.OnDup))
@@ -146,6 +149,14 @@ func (b *Builder) buildInsert(inScope *scope, i *ast.Insert) (outScope *scope) {
 
 	ins := plan.NewInsertInto(db, plan.NewInsertDestination(sch, dest), srcScope.node, isReplace, columns, onDupExprs, ignore)
 	ins.LiteralValueSource = srcLiteralOnly
+
+	if i.Returning != nil {
+		returningExprs := make([]sql.Expression, len(i.Returning))
+		for i, selectExpr := range i.Returning {
+			returningExprs[i] = b.selectExprToExpression(destScope, selectExpr)
+		}
+		ins.Returning = returningExprs
+	}
 
 	b.validateInsert(ins)
 
@@ -570,6 +581,15 @@ func (b *Builder) buildUpdate(inScope *scope, u *ast.Update) (outScope *scope) {
 			return true
 		})
 	}
+
+	if len(u.Returning) > 0 {
+		returningExprs := make([]sql.Expression, len(u.Returning))
+		for i, selectExpr := range u.Returning {
+			returningExprs[i] = b.selectExprToExpression(outScope, selectExpr)
+		}
+		update.Returning = returningExprs
+	}
+
 	outScope.node = update.WithChecks(checks)
 	return
 }
@@ -731,6 +751,10 @@ func (b *Builder) buildInto(inScope *scope, into *ast.Into) {
 		if strings.HasPrefix(val.String(), "@") {
 			vars[i] = expression.NewUserVar(strings.TrimPrefix(val.String(), "@"))
 		} else {
+			if inScope.proc == nil {
+				err := sql.ErrExternalProcedureMissingContextParam.New(val.String())
+				b.handleErr(err)
+			}
 			col, ok := inScope.proc.GetVar(val.String())
 			if !ok {
 				err := sql.ErrExternalProcedureMissingContextParam.New(val.String())

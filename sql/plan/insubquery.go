@@ -47,7 +47,7 @@ func NewInSubquery(left sql.Expression, right sql.Expression) *InSubquery {
 	return &InSubquery{expression.BinaryExpressionStub{LeftChild: left, RightChild: right}}
 }
 
-var nilKey, _ = sql.HashOf(sql.NewRow(nil))
+var nilKey, _ = sql.HashOf(nil, sql.NewRow(nil))
 
 // Eval implements the Expression interface.
 func (in *InSubquery) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
@@ -64,7 +64,7 @@ func (in *InSubquery) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	// However, there's a strange edge case. NULL IN (empty list) return 0, not NULL.
 	leftNull := left == nil
 
-	left, _, err = typ.Convert(left)
+	left, _, err = typ.Convert(ctx, left)
 	if err != nil {
 		return nil, err
 	}
@@ -91,12 +91,12 @@ func (in *InSubquery) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		}
 
 		// convert left to right's type
-		nLeft, _, err := typ.Convert(left)
+		nLeft, _, err := typ.Convert(ctx, left)
 		if err != nil {
 			return false, nil
 		}
 
-		key, err := sql.HashOf(sql.NewRow(nLeft))
+		key, err := sql.HashOf(ctx, sql.NewRow(nLeft))
 		if err != nil {
 			return nil, err
 		}
@@ -109,12 +109,12 @@ func (in *InSubquery) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 			return false, nil
 		}
 
-		val, _, err = typ.Convert(val)
+		val, _, err = typ.Convert(ctx, val)
 		if err != nil {
 			return false, nil
 		}
 
-		cmp, err := typ.Compare(left, val)
+		cmp, err := typ.Compare(ctx, left, val)
 		if err != nil {
 			return nil, err
 		}

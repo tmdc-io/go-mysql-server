@@ -30,6 +30,7 @@ import (
 	"github.com/dolthub/go-mysql-server/sql/expression/function/json"
 	"github.com/dolthub/go-mysql-server/sql/fulltext"
 	"github.com/dolthub/go-mysql-server/sql/plan"
+	"github.com/dolthub/go-mysql-server/sql/transform"
 	"github.com/dolthub/go-mysql-server/sql/types"
 )
 
@@ -105,6 +106,18 @@ func (b *Builder) buildScalar(inScope *scope, e ast.Expr) (ex sql.Expression) {
 	case *ast.NullVal:
 		return expression.NewLiteral(nil, types.Null)
 	case *ast.ColName:
+		if v.StoredProcVal != nil {
+			switch val := v.StoredProcVal.(type) {
+			case *ast.SQLVal:
+				resVal := b.ConvertVal(val)
+				if lit, isLit := resVal.(*expression.Literal); isLit && val.Type == ast.FloatVal {
+					return expression.NewLiteral(lit.Value(), types.Float64)
+				}
+				return resVal
+			case *ast.NullVal:
+				return expression.NewLiteral(nil, types.Null)
+			}
+		}
 		dbName := strings.ToLower(v.Qualifier.DbQualifier.String())
 		tblName := strings.ToLower(v.Qualifier.Name.String())
 		colName := strings.ToLower(v.Name.String())
@@ -130,7 +143,9 @@ func (b *Builder) buildScalar(inScope *scope, e ast.Expr) (ex sql.Expression) {
 			}
 			b.handleErr(err)
 		}
-		c = c.withOriginal(v.Name.String())
+
+		origTbl := b.getOrigTblName(inScope.node, c.table)
+		c = c.withOriginal(origTbl, v.Name.String())
 		return c.scalarGf()
 	case *ast.FuncExpr:
 		name := v.Name.Lowered()
@@ -382,12 +397,19 @@ func (b *Builder) buildScalar(inScope *scope, e ast.Expr) (ex sql.Expression) {
 		expr1 = b.buildScalar(inScope, v.Expr1)
 		expr2 = b.buildScalar(inScope, v.Expr2)
 
-		if v.Name == "timestampdiff" {
+		switch v.Name {
+		case "timestampadd":
+			dateAddFunc, err := function.NewDateAdd(expr2, expression.NewInterval(expr1, v.Unit))
+			if err != nil {
+				b.handleErr(err)
+			}
+			return dateAddFunc
+		case "timestampdiff":
 			return function.NewTimestampDiff(unit, expr1, expr2)
-		} else if v.Name == "timestampadd" {
+		default:
 			return nil
 		}
-		return nil
+
 	case *ast.ExtractFuncExpr:
 		var unit sql.Expression = expression.NewLiteral(strings.ToUpper(v.Unit), types.LongText)
 		expr := b.buildScalar(inScope, v.Expr)
@@ -400,6 +422,28 @@ func (b *Builder) buildScalar(inScope *scope, e ast.Expr) (ex sql.Expression) {
 	return nil
 }
 
+func (b *Builder) getOrigTblName(node sql.Node, alias string) string {
+	if node == nil {
+		return ""
+	}
+	// Look past table aliases
+	var origTbl string
+	transform.Inspect(node, func(n sql.Node) bool {
+		switch nn := n.(type) {
+		case *plan.TableAlias:
+			if nn.Name() == alias {
+				if child, ok := nn.Child.(sql.Nameable); ok {
+					origTbl = child.Name()
+				}
+			}
+			return false
+		default:
+			return true
+		}
+	})
+	return origTbl
+}
+
 // getJsonValueTypeLiteral converts a type coercion string into a literal
 // expression with the zero type of the coercion (see json_value function).
 func (b *Builder) getJsonValueTypeLiteral(e sql.Expression) sql.Expression {
@@ -408,7 +452,7 @@ func (b *Builder) getJsonValueTypeLiteral(e sql.Expression) sql.Expression {
 		err := fmt.Errorf("invalid json_value coercion type: %s", e)
 		b.handleErr(err)
 	}
-	convStr, _, err := types.LongText.Convert(typLit.Value())
+	convStr, _, err := types.LongText.Convert(b.ctx, typLit.Value())
 	if err != nil {
 		err := fmt.Errorf("invalid json_value coercion type: %s; %s", typLit.Value(), err.Error())
 		b.handleErr(err)
@@ -566,7 +610,7 @@ func (b *Builder) typeExpandComparisonLiteral(left, right sql.Expression) (sql.E
 				// information casting to the column type. The conditions
 				// should preclude out of range, casting errors, or
 				// correctness missteps.
-				val, _, err := leftGf.Type().Convert(rightLit.Value())
+				val, _, err := leftGf.Type().Convert(b.ctx, rightLit.Value())
 				if err != nil && !expression.ErrNilOperand.Is(err) {
 					b.handleErr(err)
 				}
@@ -844,7 +888,7 @@ func (b *Builder) convertInt(value string, base int) *expression.Literal {
 	if ui64, err := strconv.ParseUint(value, base, 64); err == nil {
 		return expression.NewLiteral(uint64(ui64), types.Uint64)
 	}
-	if decimal, _, err := types.InternalDecimalType.Convert(value); err == nil {
+	if decimal, _, err := types.InternalDecimalType.Convert(b.ctx, value); err == nil {
 		return expression.NewLiteral(decimal, types.InternalDecimalType)
 	}
 
@@ -876,7 +920,7 @@ func (b *Builder) ConvertVal(v *ast.SQLVal) sql.Expression {
 			if err != nil {
 				return expression.NewLiteral(string(v.Val), types.CreateLongText(b.ctx.GetCollation()))
 			}
-			dVal, _, err := dt.Convert(ogVal)
+			dVal, _, err := dt.Convert(b.ctx, ogVal)
 			if err != nil {
 				return expression.NewLiteral(string(v.Val), types.CreateLongText(b.ctx.GetCollation()))
 			}

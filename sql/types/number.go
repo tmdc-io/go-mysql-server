@@ -15,6 +15,7 @@
 package types
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -181,7 +182,7 @@ func NumericUnaryValue(t sql.Type) interface{} {
 }
 
 // Compare implements Type interface.
-func (t NumberTypeImpl_) Compare(a interface{}, b interface{}) (int, error) {
+func (t NumberTypeImpl_) Compare(s context.Context, a interface{}, b interface{}) (int, error) {
 	if hasNulls, res := CompareNulls(a, b); hasNulls {
 		return res, nil
 	}
@@ -242,7 +243,7 @@ func (t NumberTypeImpl_) Compare(a interface{}, b interface{}) (int, error) {
 }
 
 // Convert implements Type interface.
-func (t NumberTypeImpl_) Convert(v interface{}) (interface{}, sql.ConvertInRange, error) {
+func (t NumberTypeImpl_) Convert(c context.Context, v interface{}) (interface{}, sql.ConvertInRange, error) {
 	var err error
 	if v == nil {
 		return nil, sql.InRange, nil
@@ -376,15 +377,6 @@ func (t NumberTypeImpl_) MaxTextResponseByteLength(*sql.Context) uint32 {
 	default:
 		panic(fmt.Sprintf("%v is not a valid number base type", t.baseType.String()))
 	}
-}
-
-// MustConvert implements the Type interface.
-func (t NumberTypeImpl_) MustConvert(v interface{}) interface{} {
-	value, _, err := t.Convert(v)
-	if err != nil {
-		panic(err)
-	}
-	return value
 }
 
 // Equals implements the Type interface.
@@ -613,6 +605,8 @@ func (t NumberTypeImpl_) SQL(ctx *sql.Context, dest []byte, v interface{}) (sqlt
 		default:
 			return sqltypes.Value{}, err
 		}
+	} else if err != nil {
+		return sqltypes.Value{}, err
 	}
 
 	val := dest[stop:]
@@ -975,7 +969,7 @@ func convertToInt64(t NumberTypeImpl_, v interface{}) (int64, sql.ConvertInRange
 		} else if v < float32(math.MinInt64) {
 			return math.MinInt64, sql.OutOfRange, nil
 		}
-		return int64(math.Round(float64(v))), sql.OutOfRange, nil
+		return int64(math.Round(float64(v))), sql.InRange, nil
 	case float64:
 		if v > float64(math.MaxInt64) {
 			return math.MaxInt64, sql.OutOfRange, nil

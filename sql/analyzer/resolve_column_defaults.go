@@ -23,29 +23,8 @@ import (
 	"github.com/dolthub/go-mysql-server/sql/types"
 )
 
-// Resolving column defaults is a multi-phase process, with different analyzer rules for each phase.
-//
-//   - parseColumnDefaults: Some integrators (dolt but not GMS) store their column defaults as strings, which we need to
-//     parse into expressions before we can analyze them any further.
-//   - resolveColumnDefaults: Once we have an expression for a default value, it may contain expressions that need
-//     simplification before further phases of processing can take place.
-//
-// After this stage, expressions in column default values are handled by the normal analyzer machinery responsible for
-// resolving expressions, including things like columns and functions. Every node that needs to do this for its default
-// values implements `sql.Expressioner` to expose such expressions. There is custom logic in `resolveColumns` to help
-// identify the correct indexes for column references, which can vary based on the node type.
-//
-// Finally there are cleanup phases:
-//   - validateColumnDefaults: ensures that newly created column defaults from a DDL statement are legal for the type of
-//     column, various other business logic checks to match MySQL's logic.
-//   - stripTableNamesFromDefault: column defaults headed for storage or serialization in a query result need the table
-//     names in any GetField expressions stripped out so that they serialize to strings without such table names. Table
-//     names in GetField expressions are expected in much of the rest of the analyzer, so we do this after the bulk of
-//     analyzer work.
-//
-// The `information_schema.columns` table also needs access to the default values of every column in the database, and
-// because it's a table it can't implement `sql.Expressioner` like other node types. Instead it has special handling
-// here, as well as in the `resolve_functions` rule.
+// validateColumnDefaults ensures that newly created column defaults from a DDL statement are legal for the type of
+// column, various other business logic checks to match MySQL's logic.
 func validateColumnDefaults(ctx *sql.Context, _ *Analyzer, n sql.Node, _ *plan.Scope, _ RuleSelector, qFlags *sql.QueryFlags) (sql.Node, transform.TreeIdentity, error) {
 	span, ctx := ctx.Span("validateColumnDefaults")
 	defer span.End()
@@ -328,15 +307,15 @@ func stripTableNamesFromDefault(e *expression.Wrapper) (sql.Expression, transfor
 	return expression.WrapExpression(&nd), transform.NewTree, nil
 }
 
-func backtickDefaultColumnValueNames(ctx *sql.Context, _ *Analyzer, n sql.Node, _ *plan.Scope, _ RuleSelector, qFlags *sql.QueryFlags) (sql.Node, transform.TreeIdentity, error) {
-	span, ctx := ctx.Span("backtickDefaultColumnValueNames")
+func quoteDefaultColumnValueNames(ctx *sql.Context, a *Analyzer, n sql.Node, _ *plan.Scope, _ RuleSelector, qFlags *sql.QueryFlags) (sql.Node, transform.TreeIdentity, error) {
+	span, ctx := ctx.Span("quoteDefaultColumnValueNames")
 	defer span.End()
 
 	return transform.Node(n, func(n sql.Node) (sql.Node, transform.TreeIdentity, error) {
 		switch node := n.(type) {
 		case *plan.AlterDefaultSet:
 			eWrapper := expression.WrapExpression(node.Default)
-			newExpr, same, err := backtickDefault(eWrapper)
+			newExpr, same, err := quoteIdentifiers(a.SchemaFormatter, eWrapper)
 			if err != nil {
 				return node, transform.SameTree, err
 			}
@@ -356,7 +335,7 @@ func backtickDefaultColumnValueNames(ctx *sql.Context, _ *Analyzer, n sql.Node, 
 					return e, transform.SameTree, nil
 				}
 
-				return backtickDefault(eWrapper)
+				return quoteIdentifiers(a.SchemaFormatter, eWrapper)
 			})
 		case *plan.ResolvedTable:
 			ct, ok := node.Table.(*information_schema.ColumnsTable)
@@ -375,7 +354,7 @@ func backtickDefaultColumnValueNames(ctx *sql.Context, _ *Analyzer, n sql.Node, 
 					return e, transform.SameTree, nil
 				}
 
-				return backtickDefault(eWrapper)
+				return quoteIdentifiers(a.SchemaFormatter, eWrapper)
 			})
 
 			if err != nil {
@@ -397,7 +376,7 @@ func backtickDefaultColumnValueNames(ctx *sql.Context, _ *Analyzer, n sql.Node, 
 	})
 }
 
-func backtickDefault(wrap *expression.Wrapper) (sql.Expression, transform.TreeIdentity, error) {
+func quoteIdentifiers(schemaFormatter sql.SchemaFormatter, wrap *expression.Wrapper) (sql.Expression, transform.TreeIdentity, error) {
 	newDefault, ok := wrap.Unwrap().(*sql.ColumnDefaultValue)
 	if !ok {
 		return wrap, transform.SameTree, nil
@@ -409,7 +388,7 @@ func backtickDefault(wrap *expression.Wrapper) (sql.Expression, transform.TreeId
 
 	newExpr, same, err := transform.Expr(newDefault.Expr, func(expr sql.Expression) (sql.Expression, transform.TreeIdentity, error) {
 		if e, isGf := expr.(*expression.GetField); isGf {
-			return e.WithBackTickNames(true), transform.NewTree, nil
+			return e.WithQuotedNames(schemaFormatter, true), transform.NewTree, nil
 		}
 		return expr, transform.SameTree, nil
 	})
@@ -438,13 +417,27 @@ func normalizeDefault(ctx *sql.Context, colDefault *sql.ColumnDefaultValue) (sql
 		return colDefault, transform.SameTree, nil
 	}
 	typ := colDefault.Type()
-	if types.IsTime(typ) || types.IsTimespan(typ) || types.IsEnum(typ) || types.IsSet(typ) || types.IsJSON(typ) {
+	if skipDefaultNormalizationForType(typ) {
 		return colDefault, transform.SameTree, nil
 	}
 	val, err := colDefault.Eval(ctx, nil)
 	if err != nil {
 		return colDefault, transform.SameTree, nil
 	}
-	colDefault.Expr = expression.NewLiteral(val, typ)
-	return colDefault, transform.NewTree, nil
+
+	newDefault, err := colDefault.WithChildren(expression.NewLiteral(val, typ))
+	if err != nil {
+		return nil, transform.SameTree, err
+	}
+	return newDefault, transform.NewTree, nil
+}
+
+// skipDefaultNormalizationForType returns true if the default value for the given type should not be normalized for
+// serialization before being passed to the integrator for table creation
+func skipDefaultNormalizationForType(typ sql.Type) bool {
+	// Extended types handle their own serialization concerns
+	if _, ok := typ.(types.ExtendedType); ok {
+		return true
+	}
+	return types.IsTime(typ) || types.IsTimespan(typ) || types.IsEnum(typ) || types.IsSet(typ) || types.IsJSON(typ)
 }

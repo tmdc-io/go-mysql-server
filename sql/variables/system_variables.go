@@ -69,6 +69,8 @@ func (sv *globalSystemVariables) AddSystemVariables(sysVars []sql.SystemVariable
 // the value is invalid, then an error is returned. If the values contain any custom system variables, then make sure
 // that they've been added using AddSystemVariables first.
 func (sv *globalSystemVariables) AssignValues(vals map[string]interface{}) error {
+	// TODO: Add context parameter
+	ctx := sql.NewEmptyContext()
 	sv.mutex.Lock()
 	defer sv.mutex.Unlock()
 	for varName, val := range vals {
@@ -77,7 +79,7 @@ func (sv *globalSystemVariables) AssignValues(vals map[string]interface{}) error
 		if !ok {
 			return sql.ErrUnknownSystemVariable.New(varName)
 		}
-		svv, err := sysVar.InitValue(val, true)
+		svv, err := sysVar.InitValue(ctx, val, true)
 		if err != nil {
 			return err
 		}
@@ -136,7 +138,7 @@ func (sv *globalSystemVariables) GetGlobal(name string) (sql.SystemVariable, int
 // Only global dynamic variables may be set through this function, as it is intended for use through the SET GLOBAL
 // statement. To set session system variables, use the appropriate function on the session context. To set values
 // directly (such as when loading persisted values), use AssignValues. Case-insensitive.
-func (sv *globalSystemVariables) SetGlobal(name string, val interface{}) error {
+func (sv *globalSystemVariables) SetGlobal(ctx *sql.Context, name string, val interface{}) error {
 	sv.mutex.Lock()
 	defer sv.mutex.Unlock()
 	name = strings.ToLower(name)
@@ -144,7 +146,7 @@ func (sv *globalSystemVariables) SetGlobal(name string, val interface{}) error {
 	if !ok {
 		return sql.ErrUnknownSystemVariable.New(name)
 	}
-	svv, err := sysVar.SetValue(val, true)
+	svv, err := sysVar.SetValue(ctx, val, true)
 	if err != nil {
 		return err
 	}
@@ -810,8 +812,8 @@ var systemVars = map[string]sql.SystemVariable{
 		SetVarHintApplies: false,
 		Type:              types.NewSystemEnumType("event_scheduler", "ON", "OFF", "DISABLED"),
 		Default:           "ON",
-		NotifyChanged: func(_ sql.SystemVariableScope, value sql.SystemVarValue) error {
-			convertedVal, _, err := value.Var.GetType().Convert(value.Val)
+		NotifyChanged: func(ctx *sql.Context, _ sql.SystemVariableScope, value sql.SystemVarValue) error {
+			convertedVal, _, err := value.Var.GetType().Convert(ctx, value.Val)
 			if err == nil {
 				// TODO: need to update EventScheduler state at runtime if applicable
 				s := strings.ToLower(convertedVal.(string))
@@ -1057,6 +1059,14 @@ var systemVars = map[string]sql.SystemVariable{
 		Dynamic:           true,
 		SetVarHintApplies: false,
 		Type:              types.NewSystemBoolType("inmemory_joins"),
+		Default:           int8(0),
+	},
+	"disable_merge_join": &sql.MysqlSystemVariable{
+		Name:              sql.DisableMergeJoin,
+		Scope:             sql.GetMysqlScope(sql.SystemVariableScope_Both),
+		Dynamic:           true,
+		SetVarHintApplies: false,
+		Type:              types.NewSystemBoolType(sql.DisableMergeJoin),
 		Default:           int8(0),
 	},
 	"innodb_autoinc_lock_mode": &sql.MysqlSystemVariable{
@@ -2951,7 +2961,7 @@ var systemVars = map[string]sql.SystemVariable{
 		Dynamic:           false,
 		SetVarHintApplies: false,
 		Type:              types.NewSystemStringType("version"),
-		Default:           getEnvDefault("VERSION", "8.0.23"),
+		Default:           getEnvDefault("VERSION", "8.0.31"),
 	},
 	"version_comment": &sql.MysqlSystemVariable{
 		Name:              "version_comment",

@@ -78,7 +78,7 @@ func (in *InTuple) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	// also if no match is found in the list and one of the expressions in the list is NULL.
 	rightNull := false
 
-	left, _, err := typ.Convert(originalLeft)
+	left, _, err := typ.Convert(ctx, originalLeft)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (in *InTuple) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 				if err != nil {
 					return nil, err
 				}
-				cmp, err = rtyp.Compare(left, right)
+				cmp, err = rtyp.Compare(ctx, left, right)
 				if err != nil {
 					return nil, err
 				}
@@ -123,7 +123,7 @@ func (in *InTuple) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 				if err != nil {
 					return nil, err
 				}
-				cmp, err = typ.Compare(left, right)
+				cmp, err = typ.Compare(ctx, left, right)
 				if err != nil {
 					return nil, err
 				}
@@ -274,7 +274,10 @@ func hashOfSimple(ctx *sql.Context, i interface{}, t sql.Type) (uint64, error) {
 			if err != nil {
 				return 0, err
 			}
-			str = converted.(string)
+			str, _, err = sql.Unwrap[string](ctx, converted)
+			if err != nil {
+				return 0, err
+			}
 		}
 	} else {
 		x, err := convertOrTruncate(ctx, i, t.Promote())
@@ -341,7 +344,7 @@ func (hit *HashInTuple) Eval(ctx *sql.Context, row sql.Row) (interface{}, error)
 // value is truncated to the Zero value for type |t|. If the value does not convert and the type is not automatically
 // coerced, then an error is returned.
 func convertOrTruncate(ctx *sql.Context, i interface{}, t sql.Type) (interface{}, error) {
-	converted, _, err := t.Convert(i)
+	converted, _, err := t.Convert(ctx, i)
 	if err == nil {
 		return converted, nil
 	}

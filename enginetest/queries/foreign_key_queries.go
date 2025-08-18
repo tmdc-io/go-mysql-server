@@ -134,6 +134,7 @@ var ForeignKeyTests = []ScriptTest{
 		},
 	},
 	{
+		// MySQL parses the SET DEFAULT referential action, but most engines, e.g. InnoDB, don't actually support it
 		Name: "SET DEFAULT not supported",
 		Assertions: []ScriptTestAssertion{
 			{
@@ -376,6 +377,22 @@ var ForeignKeyTests = []ScriptTest{
 		Assertions: []ScriptTestAssertion{
 			{
 				Query:    "DROP TABLE t;",
+				Expected: []sql.Row{{types.NewOkResult(0)}},
+			},
+		},
+	},
+	{
+		Name: "DROP TABLE, with multiple tables, sorts by foreign key dependencies",
+		SetUpScript: []string{
+			"create table grandparent1 (pk int primary key);",
+			"create table parent1 (pk int primary key, c1 int references grandparent(pk));",
+			"create table parent2 (pk int primary key);",
+			"create table child1 (pk int primary key, c1 int, c2 int, foreign key (c1) references parent1(pk), foreign key (c2) references parent2(pk));",
+			"create table selfref (pk int primary key, c1 int, foreign key (c1) references selfref(pk));",
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query:    "DROP TABLE grandparent1, parent1, parent2, selfref, child1;",
 				Expected: []sql.Row{{types.NewOkResult(0)}},
 			},
 		},

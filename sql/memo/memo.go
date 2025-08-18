@@ -47,6 +47,7 @@ type Memo struct {
 	Ctx       *sql.Context
 	scope     *plan.Scope
 	scopeLen  int
+	Debug     bool
 
 	TableProps *tableProps
 	QFlags     *sql.QueryFlags
@@ -79,6 +80,12 @@ func (m *Memo) Root() *ExprGroup {
 
 func (m *Memo) StatsProvider() sql.StatsProvider {
 	return m.statsProv
+}
+
+func (m *Memo) SetDefaultHints() {
+	if val, _ := m.Ctx.GetSessionVariable(m.Ctx, sql.DisableMergeJoin); val.(int8) != 0 {
+		m.ApplyHint(Hint{Typ: HintTypeNoMergeJoin})
+	}
 }
 
 // newExprGroup creates a new logical expression group to encapsulate the
@@ -320,6 +327,11 @@ func (m *Memo) memoizeIndexScan(grp *ExprGroup, ita *plan.IndexedTableAccess, al
 // group. This is distinct from memoizeIndexScan so that we can mark ITA groups
 // as done early.
 func (m *Memo) MemoizeStaticIndexAccess(grp *ExprGroup, aliasName string, idx *Index, ita *plan.IndexedTableAccess, filters []sql.Expression, stat sql.Statistic) {
+	if m.Debug {
+		m.Ctx.GetLogger().Debugf("new indexed table: %s/%s/%s", ita.Index().Database(), ita.Index().Table(), ita.Index().ID())
+		m.Ctx.GetLogger().Debugf("index stats cnt: %d: ", stat.RowCount())
+		m.Ctx.GetLogger().Debugf("index stats histogram: %s", stat.Histogram().DebugString())
+	}
 	if len(filters) > 0 {
 		// set the indexed path as best. correct for cases where
 		// indexScan is incompatible with best join operator
@@ -428,7 +440,7 @@ func (m *Memo) optimizeMemoGroup(grp *ExprGroup) error {
 			} else {
 				n.SetDistinct(HashDistinctOp)
 				d := &Distinct{Child: grp}
-				dCost = float64(statsForRel(d).RowCount())
+				dCost = float64(statsForRel(m.Ctx, d).RowCount())
 			}
 			relCost += dCost
 		} else {
@@ -453,6 +465,11 @@ func (m *Memo) optimizeMemoGroup(grp *ExprGroup) error {
 // rather than a local property.
 func (m *Memo) updateBest(grp *ExprGroup, n RelExpr, cost float64) {
 	if !m.hints.isEmpty() {
+		for _, block := range m.hints.block {
+			if !block.isOk(n) {
+				return
+			}
+		}
 		if m.hints.satisfiedBy(n) {
 			if !grp.HintOk {
 				grp.Best = n
@@ -508,17 +525,32 @@ func getProjectColset(p *Project) sql.ColSet {
 func (m *Memo) ApplyHint(hint Hint) {
 	switch hint.Typ {
 	case HintTypeJoinOrder:
-		m.WithJoinOrder(hint.Args)
+		m.SetJoinOrder(hint.Args)
 	case HintTypeJoinFixedOrder:
+	case HintTypeNoMergeJoin:
+		m.SetBlockOp(func(n RelExpr) bool {
+			switch n := n.(type) {
+			case JoinRel:
+				jp := n.JoinPrivate()
+				if !jp.Left.Best.Group().HintOk || !jp.Right.Best.Group().HintOk {
+					// equiv closures can generate child plans that bypass hints
+					return false
+				}
+				if jp.Op.IsMerge() {
+					return false
+				}
+			}
+			return true
+		})
 	case HintTypeInnerJoin, HintTypeMergeJoin, HintTypeLookupJoin, HintTypeHashJoin, HintTypeSemiJoin, HintTypeAntiJoin, HintTypeLeftOuterLookupJoin:
-		m.WithJoinOp(hint.Typ, hint.Args[0], hint.Args[1])
+		m.SetJoinOp(hint.Typ, hint.Args[0], hint.Args[1])
 	case HintTypeLeftDeep:
 		m.hints.leftDeep = true
 	default:
 	}
 }
 
-func (m *Memo) WithJoinOrder(tables []string) {
+func (m *Memo) SetJoinOrder(tables []string) {
 	// order maps groupId -> table dependencies
 	order := make(map[sql.TableId]uint64)
 	for i, t := range tables {
@@ -536,7 +568,11 @@ func (m *Memo) WithJoinOrder(tables []string) {
 	}
 }
 
-func (m *Memo) WithJoinOp(op HintType, left, right string) {
+func (m *Memo) SetBlockOp(cb func(n RelExpr) bool) {
+	m.hints.block = append(m.hints.block, joinBlockHint{cb: cb})
+}
+
+func (m *Memo) SetJoinOp(op HintType, left, right string) {
 	var lTab, rTab sql.TableId
 	for _, n := range m.root.RelProps.TableIdNodes() {
 		if strings.EqualFold(left, n.Name()) {
@@ -743,14 +779,15 @@ type SourceRel interface {
 
 type Index struct {
 	// ordered list of index columns
-	order []sql.ColumnId
+	cols []sql.ColumnId
 	// unordered column set
-	set sql.ColSet
-	idx sql.Index
+	set   sql.ColSet
+	idx   sql.Index
+	order sql.IndexOrder
 }
 
 func (i *Index) Cols() []sql.ColumnId {
-	return i.order
+	return i.cols
 }
 
 func (i *Index) ColSet() sql.ColSet {
@@ -759,6 +796,10 @@ func (i *Index) ColSet() sql.ColSet {
 
 func (i *Index) SqlIdx() sql.Index {
 	return i.idx
+}
+
+func (i *Index) Order() sql.IndexOrder {
+	return i.order
 }
 
 type sourceBase struct {

@@ -110,11 +110,11 @@ func TestVectorIndex(t *testing.T) {
 		IsReverse:       false,
 	}
 
-	vectorIndexTable := vectorIndexTable{child.IndexedAccess(indexLookup)}
+	vectorIndexTable := vectorIndexTable{child.IndexedAccess(ctx, indexLookup)}
 
 	for _, testCase := range vectorIndexTestCases(t, db, vectorIndexTable) {
 		t.Run(testCase.name, func(t *testing.T) {
-			res, same, err := replaceIdxOrderByDistanceHelper(nil, nil, testCase.inputPlan, nil)
+			res, same, err := replaceIdxOrderByDistanceHelper(nil, nil, testCase.inputPlan, nil, nil)
 			require.NoError(t, err)
 			require.Equal(t, testCase.usesVectorIndex, !bool(same))
 			res = offsetAssignIndexes(res)
@@ -218,11 +218,10 @@ func (i vectorIndexTable) SkipIndexCosting() bool {
 }
 
 func (i vectorIndexTable) IndexWithPrefix(ctx *sql.Context, expressions []string) (sql.Index, error) {
-	//TODO implement me
 	panic("implement me")
 }
 
-func (i vectorIndexTable) IndexedAccess(lookup sql.IndexLookup) sql.IndexedTable {
+func (i vectorIndexTable) IndexedAccess(ctx *sql.Context, lookup sql.IndexLookup) sql.IndexedTable {
 	return i
 }
 

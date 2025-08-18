@@ -136,6 +136,7 @@ func recSchemaToGetFields(n sql.Node, sch sql.Schema) []sql.Expression {
 
 func replanJoin(ctx *sql.Context, n *plan.JoinNode, a *Analyzer, scope *plan.Scope, qFlags *sql.QueryFlags) (ret sql.Node, err error) {
 	m := memo.NewMemo(ctx, a.Catalog, scope, len(scope.Schema()), a.Coster, qFlags)
+	m.Debug = a.Debug
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -157,7 +158,7 @@ func replanJoin(ctx *sql.Context, n *plan.JoinNode, a *Analyzer, scope *plan.Sco
 
 	qFlags.Set(sql.QFlagInnerJoin)
 
-	err = addIndexScans(m)
+	err = addIndexScans(ctx, m)
 	if err != nil {
 		return nil, err
 	}
@@ -169,12 +170,12 @@ func replanJoin(ctx *sql.Context, n *plan.JoinNode, a *Analyzer, scope *plan.Sco
 	if err != nil {
 		return nil, err
 	}
-	err = addRightSemiJoins(m)
+	err = addRightSemiJoins(ctx, m)
 	if err != nil {
 		return nil, err
 	}
 
-	err = addLookupJoins(m)
+	err = addLookupJoins(ctx, m)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +185,7 @@ func replanJoin(ctx *sql.Context, n *plan.JoinNode, a *Analyzer, scope *plan.Sco
 		return nil, err
 	}
 
-	memo.CardMemoGroups(m.Root())
+	memo.CardMemoGroups(ctx, m.Root())
 
 	err = addCrossHashJoins(m)
 	if err != nil {
@@ -199,6 +200,7 @@ func replanJoin(ctx *sql.Context, n *plan.JoinNode, a *Analyzer, scope *plan.Sco
 		return nil, err
 	}
 
+	m.SetDefaultHints()
 	hints := memo.ExtractJoinHint(n)
 	for _, h := range hints {
 		// this should probably happen earlier, but the root is not
@@ -214,6 +216,9 @@ func replanJoin(ctx *sql.Context, n *plan.JoinNode, a *Analyzer, scope *plan.Sco
 	if a.Verbose && a.Debug {
 		a.Log(m.String())
 	}
+	if scope != nil {
+		scope.JoinTrees = append(scope.JoinTrees, m.String())
+	}
 
 	return m.BestRootPlan(ctx)
 }
@@ -225,7 +230,7 @@ func replanJoin(ctx *sql.Context, n *plan.JoinNode, a *Analyzer, scope *plan.Sco
 // ii) with an index that matches a prefix of the indexable relation's free
 // attributes in the join filter. Costing is responsible for choosing the most
 // appropriate execution plan among options added to an expression group.
-func addLookupJoins(m *memo.Memo) error {
+func addLookupJoins(ctx *sql.Context, m *memo.Memo) error {
 	return memo.DfsRel(m.Root(), func(e memo.RelExpr) error {
 		var right *memo.ExprGroup
 		var join *memo.JoinBase
@@ -283,7 +288,7 @@ func addLookupJoins(m *memo.Memo) error {
 				for _, idx := range indexes {
 					keyExprs, _, nullmask := keyExprsForIndex(tableId, idx.Cols(), append(filters, extraFilters...))
 					if keyExprs != nil {
-						ita, err := plan.NewIndexedAccessForTableNode(rt, plan.NewLookupBuilder(idx.SqlIdx(), keyExprs, nullmask))
+						ita, err := plan.NewIndexedAccessForTableNode(ctx, rt, plan.NewLookupBuilder(idx.SqlIdx(), keyExprs, nullmask))
 						if err != nil {
 							return err
 						}
@@ -309,7 +314,7 @@ func addLookupJoins(m *memo.Memo) error {
 			if keyExprs == nil {
 				continue
 			}
-			ita, err := plan.NewIndexedAccessForTableNode(rt, plan.NewLookupBuilder(idx.SqlIdx(), keyExprs, nullmask))
+			ita, err := plan.NewIndexedAccessForTableNode(ctx, rt, plan.NewLookupBuilder(idx.SqlIdx(), keyExprs, nullmask))
 			if err != nil {
 				return err
 			}
@@ -604,7 +609,7 @@ func convertAntiToLeftJoin(m *memo.Memo) error {
 
 // addRightSemiJoins allows for a reversed semiJoin operator when
 // the join attributes of the left side are provably unique.
-func addRightSemiJoins(m *memo.Memo) error {
+func addRightSemiJoins(ctx *sql.Context, m *memo.Memo) error {
 	return memo.DfsRel(m.Root(), func(e memo.RelExpr) error {
 		semi, ok := e.(*memo.SemiJoin)
 		if !ok {
@@ -664,7 +669,7 @@ func addRightSemiJoins(m *memo.Memo) error {
 				rGroup.RelProps.Distinct = memo.HashDistinctOp
 			}
 
-			ita, err := plan.NewIndexedAccessForTableNode(leftRt, plan.NewLookupBuilder(idx.SqlIdx(), keyExprs, nullmask))
+			ita, err := plan.NewIndexedAccessForTableNode(ctx, leftRt, plan.NewLookupBuilder(idx.SqlIdx(), keyExprs, nullmask))
 			if err != nil {
 				return err
 			}
@@ -1070,9 +1075,18 @@ func addMergeJoins(ctx *sql.Context, m *memo.Memo) error {
 		//    Check to see if any rIndexes match that set of filters
 		//    Remove the last matched filter
 		for _, lIndex := range lIndexes {
+			if lIndex.Order() == sql.IndexOrderNone {
+				// lookups can be unordered, merge indexes need to
+				// be globally ordered
+				continue
+			}
+
 			matchedEqFilters := matchedFiltersForLeftIndex(lIndex, join.Left.RelProps.FuncDeps().Constants(), eqFilters)
 			for len(matchedEqFilters) > 0 {
 				for _, rIndex := range rIndexes {
+					if rIndex.Order() == sql.IndexOrderNone {
+						continue
+					}
 					if rightIndexMatchesFilters(rIndex, join.Left.RelProps.FuncDeps().Constants(), matchedEqFilters) {
 						jb := join.Copy()
 						if d, ok := jb.Left.First.(*memo.Distinct); ok && lIndex.SqlIdx().IsUnique() {
@@ -1309,7 +1323,7 @@ func makeIndexScan(ctx *sql.Context, statsProv sql.StatsProvider, tab plan.Table
 		j++
 	}
 
-	if !idx.SqlIdx().CanSupport(rang) {
+	if !idx.SqlIdx().CanSupport(ctx, rang) {
 		return nil, false, nil
 	}
 
@@ -1338,7 +1352,7 @@ func makeIndexScan(ctx *sql.Context, statsProv sql.StatsProvider, tab plan.Table
 		return nil, false, fmt.Errorf("expected sql.TableNode, found: %T", n)
 	}
 
-	ret, err := plan.NewStaticIndexedAccessForTableNode(tn, l)
+	ret, err := plan.NewStaticIndexedAccessForTableNode(ctx, tn, l)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1354,7 +1368,6 @@ func makeIndexScan(ctx *sql.Context, statsProv sql.StatsProvider, tab plan.Table
 	}
 
 	stats, _ := statsProv.GetStats(ctx, sql.NewStatQualifier(tn.Database().Name(), schemaName, tn.Name(), idx.SqlIdx().ID()), cols)
-
 	return &memo.IndexScan{
 		Table: ret,
 		Index: idx,

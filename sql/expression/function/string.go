@@ -15,6 +15,7 @@
 package function
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -63,7 +64,7 @@ func (a *Ascii) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, nil
 	}
 
-	str, _, err := types.Text.Convert(val)
+	str, _, err := types.Text.Convert(ctx, val)
 
 	if err != nil {
 		return nil, err
@@ -118,7 +119,7 @@ func (o *Ord) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, nil
 	}
 
-	str, _, err := types.Text.Convert(val)
+	str, _, err := types.Text.Convert(ctx, val)
 	if err != nil {
 		return nil, err
 	}
@@ -185,22 +186,26 @@ func (h *Hex) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 	}
 
 	switch val := arg.(type) {
-	case string:
+	case string, sql.StringWrapper:
+		s, _, err := sql.Unwrap[string](ctx, val)
+		if err != nil {
+			return nil, err
+		}
 		childType := h.Child.Type()
 		if types.IsTextOnly(childType) {
 			// For string types we need to re-encode the internal string so that we get the correct hex output
 			encoder := childType.(sql.StringType).Collation().CharacterSet().Encoder()
-			encodedBytes, ok := encoder.Encode(encodings.StringToBytes(val))
+			encodedBytes, ok := encoder.Encode(encodings.StringToBytes(s))
 			if !ok {
 				return nil, fmt.Errorf("unable to re-encode string for HEX function")
 			}
 			return hexForString(encodings.BytesToString(encodedBytes)), nil
 		} else {
-			return hexForString(val), nil
+			return hexForString(s), nil
 		}
 
 	case uint8, uint16, uint32, uint, int, int8, int16, int32, int64:
-		n, _, err := types.Int64.Convert(arg)
+		n, _, err := types.Int64.Convert(ctx, arg)
 
 		if err != nil {
 			return nil, err
@@ -244,8 +249,12 @@ func (h *Hex) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 
 		return hexForString(s), nil
 
-	case []byte:
-		return hexForString(string(val)), nil
+	case []byte, sql.BytesWrapper:
+		b, _, err := sql.Unwrap[[]byte](ctx, val)
+		if err != nil {
+			return nil, err
+		}
+		return hexForString(string(b)), nil
 
 	case types.GeometryValue:
 		return hexForString(string(val.Serialize())), nil
@@ -345,7 +354,7 @@ func (h *Unhex) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, nil
 	}
 
-	val, _, err := types.LongText.Convert(arg)
+	val, _, err := types.LongText.Convert(ctx, arg)
 
 	if err != nil {
 		return nil, err
@@ -605,4 +614,56 @@ func (h *Bitlength) WithChildren(children ...sql.Expression) (sql.Expression, er
 		return nil, sql.ErrInvalidChildrenNumber.New(h, len(children), 1)
 	}
 	return NewBitlength(children[0]), nil
+}
+
+type Quote struct {
+	*UnaryFunc
+}
+
+var _ sql.FunctionExpression = (*Bitlength)(nil)
+var _ sql.CollationCoercible = (*Bitlength)(nil)
+
+func NewQuote(arg sql.Expression) sql.Expression {
+	return &Quote{UnaryFunc: NewUnaryFunc(arg, "QUOTE", types.Text)}
+}
+
+func (q *Quote) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
+	arg, err := q.EvalChild(ctx, row)
+	if err != nil {
+		return nil, err
+	}
+
+	val, _, err := types.Blob.Convert(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	if val == nil {
+		return nil, nil
+	}
+	valBytes := val.([]byte)
+
+	ret := new(bytes.Buffer)
+	ret.WriteByte('\'')
+	for _, c := range valBytes {
+		switch c {
+		// '\032' is CTRL+Z character
+		case '\\', '\'', '\032':
+			ret.WriteByte('\\')
+			ret.WriteByte(c)
+		case '\000':
+			ret.WriteByte('\\')
+			ret.WriteByte('0')
+		default:
+			ret.WriteByte(c)
+		}
+	}
+	ret.WriteByte('\'')
+	return ret.String(), nil
+}
+
+func (q *Quote) WithChildren(children ...sql.Expression) (sql.Expression, error) {
+	if len(children) != 1 {
+		return nil, sql.ErrInvalidChildrenNumber.New(q, len(children), 1)
+	}
+	return NewQuote(children[0]), nil
 }

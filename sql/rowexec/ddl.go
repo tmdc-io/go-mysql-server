@@ -1128,16 +1128,9 @@ func createIndexesForCreateTable(ctx *sql.Context, db sql.Database, tableNode sq
 }
 
 func (b *BaseBuilder) buildCreateProcedure(ctx *sql.Context, n *plan.CreateProcedure, row sql.Row) (sql.RowIter, error) {
-	sqlMode := sql.LoadSqlMode(ctx)
 	return &createProcedureIter{
-		spd: sql.StoredProcedureDetails{
-			Name:            n.Name,
-			CreateStatement: n.CreateProcedureString,
-			CreatedAt:       n.CreatedAt,
-			ModifiedAt:      n.ModifiedAt,
-			SqlMode:         sqlMode.String(),
-		},
-		db: n.Database(),
+		spd: n.StoredProcDetails,
+		db:  n.Database(),
 	}, nil
 }
 
@@ -1191,9 +1184,6 @@ func (b *BaseBuilder) buildAlterTableCollation(ctx *sql.Context, n *plan.AlterTa
 }
 
 func (b *BaseBuilder) buildCreateForeignKey(ctx *sql.Context, n *plan.CreateForeignKey, row sql.Row) (sql.RowIter, error) {
-	if n.FkDef.OnUpdate == sql.ForeignKeyReferentialAction_SetDefault || n.FkDef.OnDelete == sql.ForeignKeyReferentialAction_SetDefault {
-		return nil, sql.ErrForeignKeySetDefault.New()
-	}
 	db, err := n.DbProvider.Database(ctx, n.FkDef.Database)
 	if err != nil {
 		return nil, err

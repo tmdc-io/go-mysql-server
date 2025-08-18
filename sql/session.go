@@ -92,6 +92,12 @@ type Session interface {
 	GetAllStatusVariables(ctx *Context) map[string]StatusVarValue
 	// IncrementStatusVariable increments the value of the status variable by the integer value
 	IncrementStatusVariable(ctx *Context, statVarName string, val int)
+	// NewStoredProcParam creates a new Stored Procedure Parameter in the Session.
+	NewStoredProcParam(name string, param *StoredProcParam) *StoredProcParam
+	// GetStoredProcParam finds and returns the Stored Procedure Parameter by the given name.
+	GetStoredProcParam(name string) *StoredProcParam
+	// SetStoredProcParam sets the Stored Procedure Parameter of the given name to the given val.
+	SetStoredProcParam(name string, val any) error
 	// GetCurrentDatabase gets the current database for this session
 	GetCurrentDatabase() string
 	// SetCurrentDatabase sets the current database for this session
@@ -177,7 +183,7 @@ type Session interface {
 type PersistableSession interface {
 	Session
 	// PersistGlobal writes to the persisted global system variables file
-	PersistGlobal(sysVarName string, value interface{}) error
+	PersistGlobal(ctx *Context, sysVarName string, value interface{}) error
 	// RemovePersistedGlobal deletes a variable from the persisted globals file
 	RemovePersistedGlobal(sysVarName string) error
 	// RemoveAllPersistedGlobals clears the contents of the persisted globals file
@@ -205,6 +211,17 @@ type TransactionSession interface {
 	RollbackToSavepoint(ctx *Context, transaction Transaction, name string) error
 	// ReleaseSavepoint removes the savepoint named from the transaction given
 	ReleaseSavepoint(ctx *Context, transaction Transaction, name string) error
+}
+
+// A LifecycleAwareSession is a a sql.Session that gets lifecycle callbacks
+// from the handler when it begins and ends a command and when it itself ends.
+//
+// This is an optional interface which integrators can choose to implement
+// if they want those callbacks.
+type LifecycleAwareSession interface {
+	CommandBegin() error
+	CommandEnd()
+	SessionEnd()
 }
 
 type (
@@ -244,6 +261,7 @@ type Context struct {
 	queryTime   time.Time
 	tracer      trace.Tracer
 	rootSpan    trace.Span
+	interpreted bool
 	Version     AnalyzerVersion
 }
 
@@ -317,6 +335,17 @@ func RunWithNowFunc(nowFunc func() time.Time, fn func() error) error {
 	return fn()
 }
 
+// RunInterpreted modifies the context such that all calls to Context.IsInterpreted will return `true`. It is safe to
+// recursively call this.
+func RunInterpreted[T any](ctx *Context, f func(ctx *Context) (T, error)) (T, error) {
+	current := ctx.interpreted
+	ctx.interpreted = true
+	defer func() {
+		ctx.interpreted = current
+	}()
+	return f(ctx)
+}
+
 func swapNowFunc(newNowFunc func() time.Time) func() time.Time {
 	ctxNowFuncMutex.Lock()
 	defer ctxNowFuncMutex.Unlock()
@@ -333,6 +362,8 @@ func Now() time.Time {
 	return ctxNowFunc()
 }
 
+type ContextFactory func(context.Context, ...ContextOption) *Context
+
 // NewContext creates a new query context. Options can be passed to configure
 // the context. If some aspect of the context is not configure, the default
 // value will be used.
@@ -345,7 +376,7 @@ func NewContext(
 	c := &Context{
 		Context:   ctx,
 		Session:   nil,
-		queryTime: ctxNowFunc(),
+		queryTime: Now(),
 		tracer:    NoopTracer,
 	}
 	for _, opt := range opts {
@@ -374,6 +405,13 @@ func (c *Context) ApplyOpts(opts ...ContextOption) {
 
 // NewEmptyContext returns a default context with default values.
 func NewEmptyContext() *Context { return NewContext(context.TODO()) }
+
+// IsInterpreted returns `true` when this is being called from within RunInterpreted. In such cases, GMS will choose to
+// handle logic differently, as running from within an interpreted function requires different considerations than
+// running in a standard environment.
+func (c *Context) IsInterpreted() bool {
+	return c.interpreted
+}
 
 // Pid returns the process id associated with this context.
 func (c *Context) Pid() uint64 {
@@ -704,3 +742,25 @@ const (
 	VersionStable
 	VersionExperimental
 )
+
+// Helper function to call CommandBegin on a LifecycleAwareSession, or do nothing.
+func SessionCommandBegin(s Session) error {
+	if cur, ok := s.(LifecycleAwareSession); ok {
+		return cur.CommandBegin()
+	}
+	return nil
+}
+
+// Helper function to call CommandEnd on a LifecycleAwareSession, or do nothing.
+func SessionCommandEnd(s Session) {
+	if cur, ok := s.(LifecycleAwareSession); ok {
+		cur.CommandEnd()
+	}
+}
+
+// Helper function to call SessionEnd on a LifecycleAwareSession, or do nothing.
+func SessionEnd(s Session) {
+	if cur, ok := s.(LifecycleAwareSession); ok {
+		cur.SessionEnd()
+	}
+}

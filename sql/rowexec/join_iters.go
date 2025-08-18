@@ -404,6 +404,8 @@ func newFullJoinIter(ctx *sql.Context, b sql.NodeExecBuilder, j *plan.JoinNode, 
 		rowSize:   len(row) + len(j.Left().Schema()) + len(j.Right().Schema()),
 		seenLeft:  make(map[uint64]struct{}),
 		seenRight: make(map[uint64]struct{}),
+		leftLen:   len(j.Left().Schema()),
+		rightLen:  len(j.Right().Schema()),
 		b:         b,
 	}, nil
 }
@@ -422,6 +424,8 @@ type fullJoinIter struct {
 	leftRow   sql.Row
 	scopeLen  int
 	rowSize   int
+	leftLen   int
+	rightLen  int
 
 	leftDone  bool
 	seenLeft  map[uint64]struct{}
@@ -439,6 +443,7 @@ func (i *fullJoinIter) Next(ctx *sql.Context) (sql.Row, error) {
 				i.leftDone = true
 				i.l = nil
 				i.r = nil
+				continue
 			}
 			if err != nil {
 				return nil, err
@@ -457,13 +462,13 @@ func (i *fullJoinIter) Next(ctx *sql.Context) (sql.Row, error) {
 
 		rightRow, err := i.r.Next(ctx)
 		if err == io.EOF {
-			key, err := sql.HashOf(i.leftRow)
+			key, err := sql.HashOf(ctx, i.leftRow)
 			if err != nil {
 				return nil, err
 			}
 			if _, ok := i.seenLeft[key]; !ok {
 				// (left, null) only if we haven't matched left
-				ret := i.buildRow(i.leftRow, nil)
+				ret := i.buildRow(i.leftRow, make(sql.Row, i.rightLen))
 				i.r = nil
 				i.leftRow = nil
 				return i.removeParentRow(ret), nil
@@ -480,12 +485,12 @@ func (i *fullJoinIter) Next(ctx *sql.Context) (sql.Row, error) {
 		if !sql.IsTrue(matches) {
 			continue
 		}
-		rkey, err := sql.HashOf(rightRow)
+		rkey, err := sql.HashOf(ctx, rightRow)
 		if err != nil {
 			return nil, err
 		}
 		i.seenRight[rkey] = struct{}{}
-		lKey, err := sql.HashOf(i.leftRow)
+		lKey, err := sql.HashOf(ctx, i.leftRow)
 		if err != nil {
 			return nil, err
 		}
@@ -512,7 +517,7 @@ func (i *fullJoinIter) Next(ctx *sql.Context) (sql.Row, error) {
 			return nil, io.EOF
 		}
 
-		key, err := sql.HashOf(rightRow)
+		key, err := sql.HashOf(ctx, rightRow)
 		if err != nil {
 			return nil, err
 		}
@@ -520,7 +525,7 @@ func (i *fullJoinIter) Next(ctx *sql.Context) (sql.Row, error) {
 			continue
 		}
 		// (null, right) only if we haven't matched right
-		ret := i.buildRow(nil, rightRow)
+		ret := i.buildRow(make(sql.Row, i.leftLen), rightRow)
 		return i.removeParentRow(ret), nil
 	}
 }

@@ -29,6 +29,16 @@ import (
 	"github.com/dolthub/go-mysql-server/sql/types"
 )
 
+// WrapBehavior determines how the test engine will process sql.AnyWrapper values in query results before comparing them to expected results.
+type WrapBehavior int
+
+const (
+	// WrapBehavior_Unwrap causes the engine to return the unwrapped value. Use this for tests that verify the semantic meaning of the result. (Most tests)
+	WrapBehavior_Unwrap = iota
+	// WrapBehavior_Hash causes the engine to return the result of the wrapper's Hash() function. Use this for tests that verify the specific representation of the result.
+	WrapBehavior_Hash
+)
+
 type QueryTest struct {
 	// Query is the query string to execute
 	Query string
@@ -47,6 +57,10 @@ type QueryTest struct {
 	// Dialect is the supported dialect for this query, which must match the dialect of the harness if specified.
 	// The query is skipped if the dialect doesn't match.
 	Dialect string
+	// WrapBehavior indicates whether to normalize the select results via unwrapping wrapped values (the default),
+	// or replace wrapped values with their hash as determined by sql.AnyWrapped.Hash.
+	// Set this to WrapBehvior_Hash to test the exact encodings being returned by the query.
+	WrapBehavior WrapBehavior
 }
 
 type QueryPlanTest struct {
@@ -779,6 +793,12 @@ var SpatialQueryTests = []QueryTest{
 
 var QueryTests = []QueryTest{
 	{
+		Query: "WITH cte AS (SELECT * FROM xy) SELECT *, (SELECT SUM(x) FROM cte) AS xy FROM cte",
+		Expected: []sql.Row{
+			{0, 2, float64(6)}, {1, 0, float64(6)}, {2, 1, float64(6)}, {3, 3, float64(6)},
+		},
+	},
+	{
 		Query: "select 0 as col1, 1 as col2, 2 as col2 group by col2 having col2 = 1",
 		Expected: []sql.Row{
 			{0, 1, 2},
@@ -793,7 +813,7 @@ var QueryTests = []QueryTest{
 	{
 		// Assert that SYSDATE() returns different times on each call in a query (unlike NOW())
 		// Using the maximum precision for fractional seconds, lets us see a difference.
-		Query:    "select now() = sysdate(), sleep(0.1), now(6) < sysdate(6);",
+		Query:    "select now() = sysdate(), sleep(0.5), now(6) < sysdate(6);",
 		Expected: []sql.Row{{true, 0, true}},
 	},
 	{
@@ -808,10 +828,10 @@ var QueryTests = []QueryTest{
 		Query:    "select y as x from xy group by (y) having AVG(x) > 0",
 		Expected: []sql.Row{{0}, {1}, {3}},
 	},
-	//{
+	// {
 	//	Query:    "select y as z from xy group by (y) having AVG(z) > 0",
 	//	Expected: []sql.Row{{1}, {2}, {3}},
-	//},
+	// },
 	{
 		Query:    "SELECT * FROM mytable t0 INNER JOIN mytable t1 ON (t1.i IN (((true)%(''))));",
 		Expected: []sql.Row{},
@@ -835,6 +855,26 @@ var QueryTests = []QueryTest{
 	{
 		Query:    "SELECT 1 WHERE ((1 IN (NULL * 1)) IS NULL);",
 		Expected: []sql.Row{{1}},
+	},
+	{
+		Query:    "select coalesce(1, 0.0);",
+		Expected: []sql.Row{{"1"}},
+	},
+	{
+		Query:    "select coalesce(1, '0');",
+		Expected: []sql.Row{{"1"}},
+	},
+	{
+		Query:    "select coalesce(1, 'x');",
+		Expected: []sql.Row{{"1"}},
+	},
+	{
+		Query:    "select coalesce(1, 1);",
+		Expected: []sql.Row{{1}},
+	},
+	{
+		Query:    "select coalesce(1, CAST('2017-08-29' AS DATE))",
+		Expected: []sql.Row{{"1"}},
 	},
 	{
 		Query:    "SELECT count(*) from mytable WHERE ((i IN (NULL >= 1)) IS NULL);",
@@ -1045,6 +1085,16 @@ Select * from (
   Select x from xy where x in (select * from cte)
  ) dt;`,
 		Expected: []sql.Row{{1}},
+	},
+	{
+		Query: `
+WITH RECURSIVE cte(d) AS (
+  SELECT 0
+  UNION ALL
+  SELECT cte.d + 1 FROM cte limit 3
+)
+SELECT * FROM cte WHERE  d = 2;`,
+		Expected: []sql.Row{{2}},
 	},
 	{
 		// https://github.com/dolthub/dolt/issues/5642
@@ -2814,6 +2864,11 @@ Select * from (
 	{
 		Query:    "SELECT -i FROM mytable;",
 		Expected: []sql.Row{{int64(-1)}, {int64(-2)}, {int64(-3)}},
+	},
+	{
+		// https://github.com/dolthub/dolt/issues/9036
+		Query:    "SELECT -true, -false",
+		Expected: []sql.Row{{-1, 0}},
 	},
 	{
 		Query:    "SELECT +i FROM mytable;",
@@ -5152,6 +5207,17 @@ Select * from (
 		Expected: []sql.Row{{-3.0}},
 	},
 	{
+		Query: "SELECT BINARY c, BINARY vc, BINARY t, BINARY b, BINARY vb, BINARY bl FROM niltexttable",
+		Expected: []sql.Row{
+			{nil, nil, nil, nil, nil, nil},
+			{[]byte("2"), nil, []byte("2"), nil, []byte("2"), nil},
+			{nil, []byte("3"), []byte("3"), nil, nil, []byte("3")},
+			{[]byte("4"), []byte("4"), nil, []byte("4\x00"), nil, nil},
+			{nil, nil, nil, []byte("5\x00"), []byte("5"), []byte("5")},
+			{[]byte("6"), []byte("6"), []byte("6"), []byte("6\x00"), []byte("6"), []byte("6")},
+		},
+	},
+	{
 		Query:    `SELECT CONVERT("-3.9876", FLOAT) FROM dual`,
 		Expected: []sql.Row{{float32(-3.9876)}},
 	},
@@ -5347,6 +5413,12 @@ Select * from (
 		},
 	},
 	{
+		Query: `SELECT COALESCE(CAST('{"a": "one \\n two"}' as json), '');`,
+		Expected: []sql.Row{
+			{"{\"a\": \"one \\n two\"}"},
+		},
+	},
+	{
 		Query: "SELECT concat(s, i) FROM mytable",
 		Expected: []sql.Row{
 			{string("first row1")},
@@ -5357,7 +5429,7 @@ Select * from (
 	{
 		Query: "SELECT version()",
 		Expected: []sql.Row{
-			{"8.0.23"},
+			{"8.0.31"},
 		},
 	},
 	{
@@ -5503,9 +5575,9 @@ Select * from (
 	{
 		Query: "select from_unixtime(i) from mytable order by 1",
 		Expected: []sql.Row{
-			{time.Unix(1, 0)},
-			{time.Unix(2, 0)},
-			{time.Unix(3, 0)},
+			{UnixTimeInLocal(1, 0)},
+			{UnixTimeInLocal(2, 0)},
+			{UnixTimeInLocal(3, 0)},
 		},
 	},
 	// TODO: add additional tests for other functions. Every function needs an engine test to ensure it works correctly
@@ -5592,6 +5664,18 @@ Select * from (
 			{"second row"},
 			{"third row"},
 		},
+	},
+	{
+		Query:    "select * from mytable intersect select * from tabletest",
+		Expected: []sql.Row{{1, "first row"}, {2, "second row"}, {3, "third row"}},
+	},
+	{
+		Query:    "select * from mytable union distinct select * from tabletest",
+		Expected: []sql.Row{{1, "first row"}, {2, "second row"}, {3, "third row"}},
+	},
+	{
+		Query:    "select * from mytable except select * from tabletest",
+		Expected: []sql.Row{},
 	},
 	{
 		SkipPrepared: true,
@@ -5753,7 +5837,7 @@ Select * from (
 	{
 		Query: `SHOW VARIABLES WHERE Variable_name = 'version' || variable_name = 'autocommit'`,
 		Expected: []sql.Row{
-			{"autocommit", 1}, {"version", "8.0.23"},
+			{"autocommit", 1}, {"version", "8.0.31"},
 		},
 	},
 	{
@@ -5793,7 +5877,7 @@ Select * from (
 	{
 		Query: "SHOW VARIABLES LIKE 'VERSION'",
 		Expected: []sql.Row{
-			{"version", "8.0.23"},
+			{"version", "8.0.31"},
 		},
 	},
 	{
@@ -6374,6 +6458,10 @@ Select * from (
 		Expected: []sql.Row{{[]byte("bar")}},
 	},
 	{
+		Query:    "SELECT TIMESTAMPADD(DAY, 1, '2018-05-02')",
+		Expected: []sql.Row{{"2018-05-03"}},
+	},
+	{
 		Query:    "SELECT DATE_ADD('2018-05-02', INTERVAL 1 day)",
 		Expected: []sql.Row{{"2018-05-03"}},
 	},
@@ -6544,14 +6632,14 @@ Select * from (
 		Expected: []sql.Row{{types.MustJSON(`1`)}},
 	},
 	// TODO(andy)
-	//{
+	// {
 	//	Query:    `SELECT JSON_LENGTH(JSON_EXTRACT('[1, 2, 3]', '$'))`,
 	//	Expected: []sql.Row{{int32(3)}},
-	//},
-	//{
+	// },
+	// {
 	//	Query:    `SELECT JSON_LENGTH(JSON_EXTRACT('[{"i":0}, {"i":1, "y":"yyy"}, {"i":2, "x":"xxx"}]', '$.i'))`,
 	//	Expected: []sql.Row{{int32(3)}},
-	//},
+	// },
 	{
 		Query:    `SELECT GREATEST(@@back_log,@@auto_increment_offset)`,
 		Expected: []sql.Row{{1}},
@@ -6579,6 +6667,14 @@ Select * from (
 	{
 		Query:    "select abs(-i) from mytable order by 1",
 		Expected: []sql.Row{{1}, {2}, {3}},
+	},
+	{
+		Query:    "select distinct abs(c5) as a from one_pk where c2 in (1,11,31) order by a",
+		Expected: []sql.Row{{4}, {14}, {34}},
+	},
+	{
+		Query:    "select distinct abs(c5) as a from one_pk order by a",
+		Expected: []sql.Row{{4}, {14}, {24}, {34}},
 	},
 	{
 		Query:    "select ceil(i + 0.5) from mytable order by 1",
@@ -6689,11 +6785,19 @@ Select * from (
 		Expected: []sql.Row{{"first "}, {"second "}, {"third "}},
 	},
 	{
+		Query:    "select replace(s, 'row', '') from tabletest order by i",
+		Expected: []sql.Row{{"first "}, {"second "}, {"third "}},
+	},
+	{
 		Query:    "select rpad(s, 13, ' ') from mytable order by i",
 		Expected: []sql.Row{{"first row    "}, {"second row   "}, {"third row    "}},
 	},
 	{
 		Query:    "select lpad(s, 13, ' ') from mytable order by i",
+		Expected: []sql.Row{{"    first row"}, {"   second row"}, {"    third row"}},
+	},
+	{
+		Query:    "select lpad(s, 13, ' ') from tabletest order by i",
 		Expected: []sql.Row{{"    first row"}, {"   second row"}, {"    third row"}},
 	},
 	{
@@ -9777,6 +9881,18 @@ from typestable`,
 		},
 	},
 	{
+		Query: `SELECT json_type(json_extract('{"a": 123}', null));`,
+		Expected: []sql.Row{
+			{"NULL"},
+		},
+	},
+	{
+		Query: `SELECT json_type(json_extract('{"a": 123}', '$.a', null));`,
+		Expected: []sql.Row{
+			{"NULL"},
+		},
+	},
+	{
 		Query: "SELECT json_type(cast(cast('2001-01-01 12:34:56.123456' as datetime) as json));",
 		Expected: []sql.Row{
 			{"DATETIME"},
@@ -10030,7 +10146,6 @@ from typestable`,
 			{uint32(1000)},
 		},
 	},
-
 	{
 		Query: `select distinct pk1 from two_pk order by pk1`,
 		Expected: []sql.Row{
@@ -10125,6 +10240,65 @@ from typestable`,
 		Expected: []sql.Row{
 			{1},
 			{2},
+		},
+	},
+	{
+		Query: "select ''",
+		Expected: []sql.Row{
+			{""},
+		},
+	},
+	{
+		Query: "select '' from dual",
+		Expected: []sql.Row{
+			{""},
+		},
+	},
+	{
+		Query: "select @@sql_mode = 1",
+		Expected: []sql.Row{
+			{false},
+		},
+	},
+	{
+		Query:            "explain select 1",
+		SkipServerEngine: true,
+		Expected: []sql.Row{
+			{1, "SELECT", "NULL", "NULL", "NULL", "NULL", "NULL", "NULL", "NULL", "NULL", "NULL", ""},
+		},
+	},
+	{
+		Query:            "explain plan select 1",
+		SkipServerEngine: true,
+		Expected: []sql.Row{
+			{"Project"},
+			{" ├─ columns: [1]"},
+			{" └─ Table"},
+			{"     └─ name: "},
+		},
+	},
+	{
+		Query:            "explain format=tree select 1",
+		SkipServerEngine: true,
+		Expected: []sql.Row{
+			{"Project"},
+			{" ├─ columns: [1]"},
+			{" └─ Table"},
+			{"     └─ name: "},
+		},
+	},
+	{
+		Query: "select quote(i), quote(s) from mytable",
+		Expected: []sql.Row{
+			{"'1'", "'first row'"},
+			{"'2'", "'second row'"},
+			{"'3'", "'third row'"},
+		},
+	},
+	{
+		Query: "select i, s from mytable where quote(i) = quote(2)",
+		Expected: []sql.Row{
+			{2, "second row"},
 		},
 	},
 }
@@ -10500,59 +10674,67 @@ var VersionedScripts = []ScriptTest{
 var DateParseQueries = []QueryTest{
 	{
 		Query:    "SELECT STR_TO_DATE('Jan 3, 2000', '%b %e, %Y')",
-		Expected: []sql.Row{{"2000-01-03"}},
+		Expected: []sql.Row{{time.Date(2000, time.January, 3, 0, 0, 0, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('01,5,2013', '%d,%m,%Y')",
-		Expected: []sql.Row{{"2013-05-01"}},
+		Expected: []sql.Row{{time.Date(2013, time.May, 1, 0, 0, 0, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('May 1, 2013','%M %d,%Y')",
-		Expected: []sql.Row{{"2013-05-01"}},
+		Expected: []sql.Row{{time.Date(2013, time.May, 1, 0, 0, 0, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('a09:30:17','a%h:%i:%s')",
-		Expected: []sql.Row{{"09:30:17"}},
+		Expected: []sql.Row{{time.Date(-1, time.November, 30, 9, 30, 17, 0, time.UTC)}},
+	},
+	{
+		Query:    "SELECT STR_TO_DATE('A09:30:17','A%h:%i:%s')",
+		Expected: []sql.Row{{time.Date(-1, time.November, 30, 9, 30, 17, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('a09:30:17','%h:%i:%s')",
 		Expected: []sql.Row{{nil}},
 	},
 	{
+		Query:    "SELECT STR_TO_DATE('A09:30:17','a%h:%i:%s')",
+		Expected: []sql.Row{{nil}},
+	},
+	{
 		Query:    "SELECT STR_TO_DATE('09:30:17a','%h:%i:%s')",
-		Expected: []sql.Row{{"09:30:17"}},
+		Expected: []sql.Row{{time.Date(-1, time.November, 30, 9, 30, 17, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('09:30:17 pm','%h:%i:%s %p')",
-		Expected: []sql.Row{{"21:30:17"}},
+		Expected: []sql.Row{{time.Date(-1, time.November, 30, 9, 30, 17, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('9','%m')",
-		Expected: []sql.Row{{"0000-09-00"}},
+		Expected: []sql.Row{{time.Date(0, time.August, 31, 0, 0, 0, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('9','%s')",
-		Expected: []sql.Row{{"00:00:09"}},
+		Expected: []sql.Row{{time.Date(-1, time.November, 30, 0, 0, 9, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('01/02/99 314', '%m/%e/%y %f')",
-		Expected: []sql.Row{{"1999-01-02 00:00:00.314000"}},
+		Expected: []sql.Row{{time.Date(1999, time.January, 2, 0, 0, 0, 314000, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('01/02/99 0', '%m/%e/%y %f')",
-		Expected: []sql.Row{{"1999-01-02 00:00:00.000000"}},
+		Expected: []sql.Row{{time.Date(1999, time.January, 2, 0, 0, 0, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('01/02/99 05:14:12 PM', '%m/%e/%y %r')",
-		Expected: []sql.Row{{"1999-01-02 17:14:12"}},
+		Expected: []sql.Row{{time.Date(1999, time.January, 2, 5, 14, 12, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('May 3, 10:23:00 2000', '%b %e, %H:%i:%s %Y')",
-		Expected: []sql.Row{{"2000-05-03 10:23:00"}},
+		Expected: []sql.Row{{time.Date(2000, time.May, 3, 10, 23, 0, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('May 3, 10:23:00 PM 2000', '%b %e, %h:%i:%s %p %Y')",
-		Expected: []sql.Row{{"2000-05-03 22:23:00"}},
+		Expected: []sql.Row{{time.Date(2000, time.May, 3, 10, 23, 0, 0, time.UTC)}},
 	},
 	{
 		Query:    "SELECT STR_TO_DATE('May 3, 10:23:00 PM 2000', '%b %e, %H:%i:%s %p %Y')", // cannot use 24 hour time (%H) with AM/PM (%p)
@@ -10950,11 +11132,6 @@ var ErrorQueries = []QueryErrorTest{
 		Query:       `SELECT * FROM datetime_table where datetime_col >= 'not a valid datetime'`,
 		ExpectedErr: types.ErrConvertingToTime,
 	},
-	// this query was panicing, but should be allowed and should return error when this query is called
-	{
-		Query:       `CREATE PROCEDURE proc1 (OUT out_count INT) READS SQL DATA SELECT COUNT(*) FROM mytable WHERE i = 1 AND s = 'first row' AND func1(i);`,
-		ExpectedErr: sql.ErrFunctionNotFound,
-	},
 	{
 		Query:       "CREATE TABLE table_test (id int PRIMARY KEY, c float DEFAULT rand())",
 		ExpectedErr: sql.ErrSyntaxError,
@@ -11288,6 +11465,10 @@ type WriteQueryTest struct {
 	// Dialect is the supported dialect for this test, which must match the dialect of the harness if specified.
 	// The script is skipped if the dialect doesn't match.
 	Dialect string
+	// WrapBehavior indicates whether to normalize the select results via unwrapping wrapped values (the default),
+	// or replace wrapped values with their hash as determined by sql.AnyWrapped.Hash.
+	// Set this to WrapBehvior_Hash to test the exact encodings being returned by the query.
+	WrapBehavior WrapBehavior
 }
 
 // GenericErrorQueryTest is a query test that is used to assert an error occurs for some query, without specifying what
@@ -11617,4 +11798,10 @@ func MustParseTime(layout, value string) time.Time {
 		panic(err)
 	}
 	return parsed
+}
+
+func UnixTimeInLocal(sec, nsec int64) time.Time {
+	t := time.Unix(sec, nsec)
+	_, offset := time.Now().Zone()
+	return t.Add(time.Second * time.Duration(offset)).In(time.UTC)
 }

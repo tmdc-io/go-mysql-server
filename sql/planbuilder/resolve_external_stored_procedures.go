@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package analyzer
+package planbuilder
 
 import (
 	"reflect"
@@ -87,7 +87,7 @@ func init() {
 
 // resolveExternalStoredProcedure resolves external stored procedures, converting them to the format expected of
 // normal stored procedures.
-func resolveExternalStoredProcedure(_ *sql.Context, externalProcedure sql.ExternalStoredProcedureDetails) (*plan.Procedure, error) {
+func resolveExternalStoredProcedure(externalProcedure sql.ExternalStoredProcedureDetails) (*plan.Procedure, error) {
 	funcVal := reflect.ValueOf(externalProcedure.Function)
 	funcType := funcVal.Type()
 	if funcType.Kind() != reflect.Func {
@@ -145,7 +145,7 @@ func resolveExternalStoredProcedure(_ *sql.Context, externalProcedure sql.Extern
 		}
 	}
 
-	procedure := plan.NewProcedure(
+	proc := plan.NewProcedure(
 		externalProcedure.Name,
 		"root",
 		paramDefinitions,
@@ -153,13 +153,14 @@ func resolveExternalStoredProcedure(_ *sql.Context, externalProcedure sql.Extern
 		"External stored procedure",
 		nil,
 		externalProcedure.FakeCreateProcedureStmt(),
-		&plan.ExternalProcedure{
-			ExternalStoredProcedureDetails: externalProcedure,
-			ParamDefinitions:               paramDefinitions,
-			Params:                         paramReferences,
-		},
 		time.Unix(1, 0),
 		time.Unix(1, 0),
+		nil,
 	)
-	return procedure, nil
+	proc.ExternalProc = &plan.ExternalProcedure{
+		ExternalStoredProcedureDetails: externalProcedure,
+		ParamDefinitions:               paramDefinitions,
+		Params:                         paramReferences,
+	}
+	return proc, nil
 }

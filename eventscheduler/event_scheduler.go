@@ -20,6 +20,7 @@ import (
 
 	"github.com/dolthub/go-mysql-server/sql"
 	"github.com/dolthub/go-mysql-server/sql/analyzer"
+	"github.com/dolthub/go-mysql-server/sql/mysql_db"
 )
 
 // ErrEventSchedulerDisabled is returned when user tries to set `event_scheduler_notifier` global system variable to ON or OFF
@@ -41,13 +42,17 @@ const (
 	SchedulerDisabled SchedulerStatus = "DISABLED"
 )
 
+// eventSchedulerSuperUserName is the name of the locked superuser that the event scheduler
+// creates and uses to ensure it has access to read events from all databases.
+const eventSchedulerSuperUserName = "event_scheduler"
+
 var _ sql.EventScheduler = (*EventScheduler)(nil)
 
 // EventScheduler is responsible for SQL events execution.
 type EventScheduler struct {
 	status        SchedulerStatus
 	executor      *eventExecutor
-	ctxGetterFunc func() (*sql.Context, func() error, error)
+	ctxGetterFunc func() (*sql.Context, error)
 }
 
 // InitEventScheduler is called at the start of the server. This function returns EventScheduler object
@@ -58,7 +63,7 @@ type EventScheduler struct {
 func InitEventScheduler(
 	a *analyzer.Analyzer,
 	bgt *sql.BackgroundThreads,
-	getSqlCtxFunc func() (*sql.Context, func() error, error),
+	getSqlCtxFunc func() (*sql.Context, error),
 	status SchedulerStatus,
 	runQueryFunc func(ctx *sql.Context, dbName, query, username, address string) error,
 	period int,
@@ -69,24 +74,87 @@ func InitEventScheduler(
 		ctxGetterFunc: getSqlCtxFunc,
 	}
 
+	// Ensure the event_scheduler superuser exists so that the event scheduler can read
+	// events from all databases.
+	initializeEventSchedulerSuperUser(a.Catalog.MySQLDb)
+
 	// If the EventSchedulerStatus is ON, then load enabled
 	// events and start executing events on schedule.
 	if es.status == SchedulerOn {
-		ctx, commit, err := getSqlCtxFunc()
+		ctx, err := getSqlCtxFunc()
+		if err != nil {
+			return nil, err
+		}
+		ctx.Session.SetClient(sql.Client{
+			User:         eventSchedulerSuperUserName,
+			Address:      "localhost",
+			Capabilities: 0,
+		})
+		defer sql.SessionEnd(ctx.Session)
+		sql.SessionCommandBegin(ctx.Session)
+		defer sql.SessionCommandEnd(ctx.Session)
+		err = beginTx(ctx)
 		if err != nil {
 			return nil, err
 		}
 		err = es.loadEventsAndStartEventExecutor(ctx, a)
 		if err != nil {
+			rollbackTx(ctx)
 			return nil, err
 		}
-		err = commit()
+		err = commitTx(ctx)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return es, nil
+}
+
+func beginTx(ctx *sql.Context) error {
+	if ts, ok := ctx.Session.(sql.TransactionSession); ok {
+		tr, err := ts.StartTransaction(ctx, sql.ReadWrite)
+		if err != nil {
+			return err
+		}
+		ts.SetTransaction(tr)
+	}
+	return nil
+}
+
+func commitTx(ctx *sql.Context) error {
+	if ts, ok := ctx.Session.(sql.TransactionSession); ok {
+		defer ts.SetTransaction(nil)
+		return ts.CommitTransaction(ctx, ts.GetTransaction())
+	}
+	return nil
+}
+
+func rollbackTx(ctx *sql.Context) error {
+	if ts, ok := ctx.Session.(sql.TransactionSession); ok {
+		defer ts.SetTransaction(nil)
+		return ts.Rollback(ctx, ts.GetTransaction())
+	}
+	return nil
+}
+
+// initializeEventSchedulerSuperUser ensures the event_scheduler superuser exists (as a locked
+// account that cannot be directly used to log in) so that the event scheduler can read events
+// from all databases.
+func initializeEventSchedulerSuperUser(mySQLDb *mysql_db.MySQLDb) {
+	// TODO: Creating a superuser for the event_scheduler causes the mysqldb to be marked as
+	//       enabled, which enables privileges checking for all resources. We want privileges
+	//       enabled only when running in a sql-server context, but currently creating any
+	//       engine starts up the event system, so we reset the mysqldb enabled status after
+	//       we create the event scheduler super user. To clean this up, we can look into
+	//       moving the event system initialization, or possibly just switch to enabling the
+	//       privilege system as part of server startup.
+	wasEnabled := mySQLDb.Enabled()
+	defer mySQLDb.SetEnabled(wasEnabled)
+
+	ed := mySQLDb.Editor()
+	defer ed.Close()
+	mySQLDb.AddLockedSuperUser(ed, eventSchedulerSuperUserName, "localhost", "")
 }
 
 // Close closes the EventScheduler.
@@ -113,15 +181,23 @@ func (es *EventScheduler) TurnOnEventScheduler(a *analyzer.Analyzer) error {
 
 	es.status = SchedulerOn
 
-	ctx, commit, err := es.ctxGetterFunc()
+	ctx, err := es.ctxGetterFunc()
+	if err != nil {
+		return err
+	}
+	defer sql.SessionEnd(ctx.Session)
+	sql.SessionCommandBegin(ctx.Session)
+	defer sql.SessionCommandEnd(ctx.Session)
+	err = beginTx(ctx)
 	if err != nil {
 		return err
 	}
 	err = es.loadEventsAndStartEventExecutor(ctx, a)
 	if err != nil {
+		rollbackTx(ctx)
 		return err
 	}
-	return commit()
+	return commitTx(ctx)
 }
 
 // TurnOffEventScheduler is called when user sets --event-scheduler system variable to OFF or 0.

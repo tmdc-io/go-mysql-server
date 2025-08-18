@@ -215,6 +215,23 @@ func applyTriggers(ctx *sql.Context, a *Analyzer, n sql.Node, scope *plan.Scope,
 			if !ok {
 				return nil, transform.SameTree, sql.ErrTriggerCreateStatementInvalid.New(trigger.CreateStatement)
 			}
+			transform.Inspect(ct.Body, func(n sql.Node) bool {
+				call, isCall := n.(*plan.Call)
+				if !isCall {
+					return true
+				}
+				if call.Procedure == nil {
+					return true
+				}
+				if call.Procedure.ValidationError == nil {
+					return true
+				}
+				err = call.Procedure.ValidationError
+				return false
+			})
+			if err != nil {
+				return nil, transform.SameTree, err
+			}
 
 			var triggerTable string
 			switch t := ct.Table.(type) {
@@ -322,7 +339,12 @@ func applyTrigger(ctx *sql.Context, a *Analyzer, originalNode, n sql.Node, scope
 				}
 				return n.WithSource(newSource), transform.NewTree, nil
 			case expression.ProcedureReferencable:
-				return n.WithParamReference(pRef), transform.NewTree, nil
+				newParamRef := n.WithParamReference(pRef)
+				newNode, _, err := transform.NodeWithOpaque(newParamRef, assignProcRef)
+				if err != nil {
+					return nil, transform.SameTree, err
+				}
+				return newNode, transform.NewTree, nil
 			default:
 				return assignProcRef(node)
 			}

@@ -59,7 +59,7 @@ func (r *Reverse) Eval(
 		return nil, err
 	}
 
-	v, _, err = types.LongText.Convert(v)
+	v, _, err = types.LongText.Convert(ctx, v)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (r *Repeat) Eval(
 		return nil, err
 	}
 
-	str, _, err = types.LongText.Convert(str)
+	str, _, err = types.LongText.Convert(ctx, str)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (r *Repeat) Eval(
 		return nil, err
 	}
 
-	count, _, err = types.Int32.Convert(count)
+	count, _, err = types.Int32.Convert(ctx, count)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +255,7 @@ func (r *Replace) Eval(
 		return nil, err
 	}
 
-	str, _, err = types.LongText.Convert(str)
+	str, _, err = types.LongText.Convert(ctx, str)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (r *Replace) Eval(
 		return nil, err
 	}
 
-	fromStr, _, err = types.LongText.Convert(fromStr)
+	fromStr, _, err = types.LongText.Convert(ctx, fromStr)
 	if err != nil {
 		return nil, err
 	}
@@ -275,14 +275,31 @@ func (r *Replace) Eval(
 		return nil, err
 	}
 
-	toStr, _, err = types.LongText.Convert(toStr)
+	toStr, _, err = types.LongText.Convert(ctx, toStr)
 	if err != nil {
 		return nil, err
 	}
 
-	if fromStr.(string) == "" {
-		return str, nil
-	}
+	{
+		str, _, err := sql.Unwrap[string](ctx, str)
+		if err != nil {
+			return nil, err
+		}
 
-	return strings.Replace(str.(string), fromStr.(string), toStr.(string), -1), nil
+		fromStr, _, err := sql.Unwrap[string](ctx, fromStr)
+		if err != nil {
+			return nil, err
+		}
+
+		toStr, _, err := sql.Unwrap[string](ctx, toStr)
+		if err != nil {
+			return nil, err
+		}
+
+		if fromStr == "" {
+			return str, nil
+		}
+
+		return strings.Replace(str, fromStr, toStr, -1), nil
+	}
 }

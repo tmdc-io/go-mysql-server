@@ -701,11 +701,11 @@ func TestCollationCoercion(t *testing.T) {
 					require.Equal(t, 1, len(rows))
 					require.Equal(t, 1, len(rows[0]))
 					if i == 0 {
-						num, _, err := types.Int64.Convert(rows[0][0])
+						num, _, err := types.Int64.Convert(ctx, rows[0][0])
 						require.NoError(t, err)
 						require.Equal(t, test.Coercibility, num.(int64))
 					} else {
-						str, _, err := types.LongText.Convert(rows[0][0])
+						str, _, err := types.LongText.Convert(ctx, rows[0][0])
 						require.NoError(t, err)
 						require.Equal(t, test.Collation.Name(), str.(string))
 					}
@@ -717,7 +717,14 @@ func TestCollationCoercion(t *testing.T) {
 
 func TestRegex(t *testing.T) {
 	harness := enginetest.NewDefaultMemoryHarness()
-	harness.Setup(setup.SimpleSetup...)
+	regexSetup := []setup.SetupScript{
+		{
+			"CREATE TABLE tests(pk int primary key, str text, pattern text, flags text);",
+			"INSERT INTO tests VALUES (1, 'testing', 'TESTING', 'ci');",
+		},
+	}
+	setupsScripts := append(setup.SimpleSetup, regexSetup)
+	harness.Setup(setupsScripts...)
 	engine, err := harness.NewEngine(t)
 	require.NoError(t, err)
 	defer engine.Close()
@@ -778,6 +785,47 @@ func TestRegex(t *testing.T) {
 					Expected: []sql.Row{
 						{"abcDEF"}, {"abcdef"},
 					},
+				},
+			},
+		},
+		{
+			Name: "REGEXP caching behavior",
+			SetUpScript: []string{
+				"CREATE TABLE test (v1 TEXT, v2 INT, v3 INT);",
+				"INSERT INTO test VALUES ('abc', 1, 2), ('[d-i]+', 2, 3), ('ghi', 3, 4);",
+			},
+			Assertions: []queries.ScriptTestAssertion{
+				{
+					Query:    "SELECT REGEXP_LIKE('abc def ghi', 'abc') FROM test;",
+					Expected: []sql.Row{{1}, {1}, {1}},
+				},
+				{
+					Query:    "SELECT REGEXP_LIKE('abc def ghi', v1) FROM test;",
+					Expected: []sql.Row{{1}, {1}, {1}},
+				},
+				{
+					Query:    "SELECT REGEXP_INSTR('abc def ghi', '[a-z]+', 1, 2) FROM test;",
+					Expected: []sql.Row{{5}, {5}, {5}},
+				},
+				{
+					Query:    "SELECT REGEXP_INSTR('abc def ghi', v1, 1, 1) FROM test;",
+					Expected: []sql.Row{{1}, {5}, {9}},
+				},
+				{
+					Query:    "SELECT REGEXP_INSTR('abc def ghi', '[a-z]+', v2, v3) FROM test;",
+					Expected: []sql.Row{{5}, {9}, {0}},
+				},
+				{
+					Query:    "SELECT REGEXP_SUBSTR('abc def ghi', '[a-z]+', 1, 2) FROM test;",
+					Expected: []sql.Row{{"def"}, {"def"}, {"def"}},
+				},
+				{
+					Query:    "SELECT REGEXP_SUBSTR('abc def ghi', v1, 1, 1) FROM test;",
+					Expected: []sql.Row{{"abc"}, {"def"}, {"ghi"}},
+				},
+				{
+					Query:    "SELECT REGEXP_SUBSTR('abc def ghi', '[a-z]+', v2, v3) FROM test;",
+					Expected: []sql.Row{{"def"}, {"ghi"}, {nil}},
 				},
 			},
 		},
@@ -1037,7 +1085,7 @@ func newDatabase() (*sql2.DB, func()) {
 		Protocol: "tcp",
 		Address:  fmt.Sprintf("localhost:%d", port),
 	}
-	srv, err := server.NewServer(cfg, engine, harness.SessionBuilder(), nil)
+	srv, err := server.NewServer(cfg, engine, sql.NewContext, harness.SessionBuilder(), nil)
 	if err != nil {
 		panic(err)
 	}

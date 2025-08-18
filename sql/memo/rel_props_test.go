@@ -39,8 +39,8 @@ func TestPopulateFDs(t *testing.T) {
 			notNull: sql.NewColSet(1, 2, 3),
 			indexes: []*Index{
 				{
-					order: []sql.ColumnId{2, 1},
-					set:   sql.NewColSet(1, 2),
+					cols: []sql.ColumnId{2, 1},
+					set:  sql.NewColSet(1, 2),
 				},
 			},
 			key: sql.NewColSet(1, 2),
@@ -62,8 +62,8 @@ func TestPopulateFDs(t *testing.T) {
 			notNull: sql.NewColSet(1, 2, 3),
 			indexes: []*Index{
 				{
-					order: []sql.ColumnId{1, 2, 3},
-					set:   sql.NewColSet(1, 2, 3),
+					cols: []sql.ColumnId{1, 2, 3},
+					set:  sql.NewColSet(1, 2, 3),
 				},
 			},
 			key: sql.NewColSet(1, 2, 3),
@@ -151,7 +151,7 @@ var _ sql.Table = (*dummyTable)(nil)
 var _ sql.PrimaryKeyTable = (*dummyTable)(nil)
 var _ sql.IndexAddressable = (*dummyTable)(nil)
 
-func (t *dummyTable) IndexedAccess(sql.IndexLookup) sql.IndexedTable {
+func (t *dummyTable) IndexedAccess(*sql.Context, sql.IndexLookup) sql.IndexedTable {
 	panic("implement me")
 }
 
@@ -197,7 +197,7 @@ type dummyIndex struct {
 	cols []string
 }
 
-func (dummyIndex) CanSupport(...sql.Range) bool {
+func (dummyIndex) CanSupport(*sql.Context, ...sql.Range) bool {
 	return true
 }
 

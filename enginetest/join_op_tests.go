@@ -230,6 +230,56 @@ var DefaultJoinOpTests = []joinOpTest{
 		},
 	},
 	{
+		name: "left join null-filter",
+		setup: [][]string{
+			setup.MydbData[0],
+			{
+				"CREATE table xy (x int primary key, y int, z int, index y_idx(y));",
+				"CREATE table ab (a int primary key, b int, c int);",
+				"insert into xy values (1,0,0), (2,null,1), (3,2,2),(4,2,3);",
+				"insert into ab values (0,1,0), (1,2,1), (2,3,2), (3,4,3);",
+			},
+		},
+		tests: []JoinOpTests{
+			{
+				Query:    "select /*+ JOIN_ORDER(ab,xy) */ x from xy left join ab on x = a and z = 5 where a is null order by x ",
+				Expected: []sql.Row{{1}, {2}, {3}, {4}},
+			},
+			{
+				Query:    "select /*+ JOIN_ORDER(xy,ab) */ x from xy left join ab on x = a and z = 5 where a is null order by x ",
+				Expected: []sql.Row{{1}, {2}, {3}, {4}},
+			},
+			// partial return
+			{
+				Query:    "select /*+ JOIN_ORDER(ab,xy) */ x from xy left join ab on x = a and z = 1 where a is null order by x ",
+				Expected: []sql.Row{{1}, {3}, {4}},
+			},
+			{
+				Query:    "select /*+ JOIN_ORDER(xy,ab) */ x from xy left join ab on x = a and z in (1,2) where a is null order by x ",
+				Expected: []sql.Row{{1}, {4}},
+			},
+		},
+	},
+	{
+		name: "type conversion panic bug",
+		setup: [][]string{
+			setup.MydbData[0],
+			{
+				"create table xy (x int primary key, y int, z varchar(10), key (y,z));",
+				"insert into xy values (0,0,'0'), (1,1,'1');",
+				"create table ab (a int primary key, b int);",
+				"insert into ab values (0,0), (1,1);",
+			},
+		},
+		tests: []JoinOpTests{
+			{
+				// the literal z should be internally cast to the appropriate string type
+				Query:    "select /*+ JOIN_ORDER(ab,xy) */ count(*) from xy join ab on y = a and z = 0",
+				Expected: []sql.Row{{1}},
+			},
+		},
+	},
+	{
 		name: "partial key null lookup join indexes",
 		setup: [][]string{
 			setup.MydbData[0],
@@ -1930,6 +1980,56 @@ SELECT SUM(x) FROM xy WHERE x IN (
 				Query: "SELECT * FROM EMPLOYEES e INNER JOIN DEPARTMENTS d ON e.DePaRtMeNt_Id = d.ID WHERE e.dEpArTmEnT_iD = '102';",
 				Expected: []sql.Row{
 					{"002", "Jane", "102", "102", "Finance"},
+				},
+			},
+		},
+	},
+	{
+		name: "string key test",
+		setup: [][]string{
+			{
+				`
+CREATE TABLE testA (
+	id int PRIMARY KEY,
+	supplierkey VARCHAR(100),
+	name VARCHAR(100),
+	product VARCHAR(100),
+	UNIQUE KEY unique_product_supplier_key (product, supplierKey)
+);`,
+				`
+CREATE TABLE testB (
+	id int PRIMARY KEY,
+	vendorkey VARCHAR(100),
+	name VARCHAR(100),
+	supplierkey VARCHAR(100),
+	product VARCHAR(100),
+	UNIQUE KEY unique_product_vendor_key (product,vendorKey)
+);`,
+				"INSERT INTO testA VALUES (1, 'texwin-post-frame', 'Texwin (Post Frame)', 'carports');",
+				"INSERT INTO testA VALUES (2, 'texwin', 'Texwin', 'carports');",
+				"INSERT INTO testB VALUES (1, 'advancebldg', 'Test', 'texwin', 'carports');",
+			},
+		},
+		tests: []JoinOpTests{
+			{
+				Query: `
+SELECT  
+    v.vendorkey AS vendor,
+    v.product,
+    v.supplierkey,
+    s.name      AS supplierName
+FROM   
+    testB AS v
+INNER JOIN 
+    testA AS s
+ON 
+    s.supplierkey = v.supplierkey AND 
+    s.product     = v.product
+WHERE 
+    v.vendorkey = 'advancebldg';
+`,
+				Expected: []sql.Row{
+					{"advancebldg", "carports", "texwin", "Texwin"},
 				},
 			},
 		},

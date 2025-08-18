@@ -10,15 +10,20 @@ import (
 
 // replaceIdxSort applies an IndexAccess when there is an `OrderBy` over a prefix of any columns with Indexes
 func replaceIdxOrderByDistance(ctx *sql.Context, a *Analyzer, n sql.Node, scope *plan.Scope, sel RuleSelector, qFlags *sql.QueryFlags) (sql.Node, transform.TreeIdentity, error) {
-	return replaceIdxOrderByDistanceHelper(ctx, scope, n, nil)
+	return replaceIdxOrderByDistanceHelper(ctx, scope, n, nil, nil)
 }
 
-func replaceIdxOrderByDistanceHelper(ctx *sql.Context, scope *plan.Scope, node sql.Node, sortNode *plan.TopN) (sql.Node, transform.TreeIdentity, error) {
+func replaceIdxOrderByDistanceHelper(ctx *sql.Context, scope *plan.Scope, node sql.Node, sortNode plan.Sortable, limit sql.Expression) (sql.Node, transform.TreeIdentity, error) {
 	switch n := node.(type) {
 	case *plan.TopN:
 		sortNode = n // lowest parent sort node
+		limit = n.Limit
+	case plan.Sortable:
+		sortNode = n
+	case *plan.Limit:
+		limit = n.Limit
 	case *plan.ResolvedTable:
-		if sortNode == nil {
+		if sortNode == nil || limit == nil {
 			return n, transform.SameTree, nil
 		}
 
@@ -44,7 +49,7 @@ func replaceIdxOrderByDistanceHelper(ctx *sql.Context, scope *plan.Scope, node s
 
 		// Column references have not been assigned their final indexes yet, so do that for the ORDER BY expression now.
 		// We can safely do this because an expression that references other tables won't pass `isSortFieldsValidPrefix` below.
-		sortNode = offsetAssignIndexes(sortNode).(*plan.TopN)
+		sortNode = offsetAssignIndexes(sortNode).(plan.Sortable)
 
 		sfExprs := normalizeExpressions(tableAliases, sortNode.GetSortFields().ToExpressions()...)
 		sfAliases := aliasedExpressionsInNode(sortNode)
@@ -59,15 +64,24 @@ func replaceIdxOrderByDistanceHelper(ctx *sql.Context, scope *plan.Scope, node s
 		if !isDistance {
 			return n, transform.SameTree, nil
 		}
+
+		// We currently require that the query vector to the distance function is a constant value that does not
+		// depend on the row. Right now that can be a Literal or a UserVar.
+		isLiteral := func(expr sql.Expression) bool {
+			switch expr.(type) {
+			case *expression.Literal, *expression.UserVar:
+				return true
+			}
+			return false
+		}
+
 		var column sql.Expression
 		var literal sql.Expression
-		_, leftIsLiteral := distance.LeftChild.(*expression.Literal)
-		if leftIsLiteral {
+		if isLiteral(distance.LeftChild) {
 			column = distance.RightChild
 			literal = distance.LeftChild
 		} else {
-			_, rightIsLiteral := distance.RightChild.(*expression.Literal)
-			if rightIsLiteral {
+			if isLiteral(distance.RightChild) {
 				column = distance.LeftChild
 				literal = distance.RightChild
 			} else {
@@ -91,8 +105,6 @@ func replaceIdxOrderByDistanceHelper(ctx *sql.Context, scope *plan.Scope, node s
 			return n, transform.SameTree, nil
 		}
 
-		limit := sortNode.Limit
-
 		lookup := sql.IndexLookup{
 			Index:  idx,
 			Ranges: sql.MySQLRangeCollection{},
@@ -102,7 +114,7 @@ func replaceIdxOrderByDistanceHelper(ctx *sql.Context, scope *plan.Scope, node s
 				Literal: literal,
 			},
 		}
-		nn, err := plan.NewStaticIndexedAccessForTableNode(n, lookup)
+		nn, err := plan.NewStaticIndexedAccessForTableNode(ctx, n, lookup)
 		if err != nil {
 			return nil, transform.SameTree, err
 		}
@@ -116,7 +128,7 @@ func replaceIdxOrderByDistanceHelper(ctx *sql.Context, scope *plan.Scope, node s
 		same := transform.SameTree
 		switch c := child.(type) {
 		case *plan.Project, *plan.TableAlias, *plan.ResolvedTable, *plan.Filter, *plan.Limit, *plan.TopN, *plan.Offset, *plan.Sort, *plan.IndexedTableAccess:
-			newChildren[i], same, err = replaceIdxOrderByDistanceHelper(ctx, scope, child, sortNode)
+			newChildren[i], same, err = replaceIdxOrderByDistanceHelper(ctx, scope, child, sortNode, limit)
 		default:
 			newChildren[i] = c
 		}

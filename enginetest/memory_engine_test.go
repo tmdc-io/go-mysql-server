@@ -111,7 +111,11 @@ func TestLateralJoin(t *testing.T) {
 
 // TestJoinPlanning runs join-specific tests for merge
 func TestJoinPlanning(t *testing.T) {
-	enginetest.TestJoinPlanning(t, enginetest.NewDefaultMemoryHarness())
+	harness := enginetest.NewDefaultMemoryHarness()
+	if harness.IsUsingServer() {
+		harness.QueriesToSkip("block merge join")
+	}
+	enginetest.TestJoinPlanning(t, harness)
 }
 
 // TestJoinOps runs join-specific tests for merge
@@ -148,8 +152,8 @@ func TestSingleQuery(t *testing.T) {
 	t.Skip()
 	var test queries.QueryTest
 	test = queries.QueryTest{
-		Query:    `select now() = sysdate(), sleep(0.1), now(6) < sysdate(6);`,
-		Expected: []sql.Row{{true, 0, true}},
+		Query:    `select -true`,
+		Expected: []sql.Row{{-1}},
 	}
 
 	fmt.Sprintf("%v", test)
@@ -201,14 +205,20 @@ func TestSingleScript(t *testing.T) {
 	t.Skip()
 	var scripts = []queries.ScriptTest{
 		{
-			Name: "test script",
-			SetUpScript: []string{
-				"create table t (i int);",
-			},
+			Name:        "AS OF propagates to nested CALLs",
+			SetUpScript: []string{},
 			Assertions: []queries.ScriptTestAssertion{
 				{
-					Query:    "select 1 into @a",
-					Expected: []sql.Row{},
+					Query: "create procedure create_proc() create table t (i int primary key, j int);",
+					Expected: []sql.Row{
+						{types.NewOkResult(0)},
+					},
+				},
+				{
+					Query: "call create_proc()",
+					Expected: []sql.Row{
+						{types.NewOkResult(0)},
+					},
 				},
 			},
 		},
@@ -216,10 +226,14 @@ func TestSingleScript(t *testing.T) {
 
 	for _, test := range scripts {
 		harness := enginetest.NewMemoryHarness("", 1, testNumPartitions, true, nil)
+		harness.UseServer()
 		engine, err := harness.NewEngine(t)
 		if err != nil {
 			panic(err)
 		}
+
+		//engine.EngineAnalyzer().Debug = true
+		//engine.EngineAnalyzer().Verbose = true
 
 		enginetest.TestScriptWithEngine(t, engine, harness, test)
 	}

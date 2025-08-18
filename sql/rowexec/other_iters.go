@@ -40,7 +40,7 @@ func (itr *analyzeTableIter) Next(ctx *sql.Context) (sql.Row, error) {
 
 	msgType := "status"
 	msgText := "OK"
-	err := itr.stats.RefreshTableStats(ctx, t, itr.db)
+	err := itr.stats.AnalyzeTable(ctx, t, itr.db)
 	if err != nil {
 		msgType = "Error"
 		msgText = err.Error()
@@ -334,7 +334,7 @@ func (ci *concatIter) Next(ctx *sql.Context) (sql.Row, error) {
 		if err != nil {
 			return nil, err
 		}
-		hash, err := sql.HashOf(res)
+		hash, err := sql.HashOf(ctx, res)
 		if err != nil {
 			return nil, err
 		}

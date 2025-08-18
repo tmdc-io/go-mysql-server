@@ -16,6 +16,7 @@ package analyzer
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"runtime/trace"
@@ -176,6 +177,10 @@ func (ab *Builder) RemoveAfterAllRule(id RuleId) *Builder {
 
 var log = logrus.New()
 
+func SetOutput(w io.Writer) {
+	log.SetOutput(w)
+}
+
 func init() {
 	// TODO: give the option for debug analyzer logging format to match the global one
 	log.SetFormatter(simpleLogFormatter{})
@@ -259,13 +264,15 @@ func (ab *Builder) Build() *Analyzer {
 	}
 
 	return &Analyzer{
-		Debug:        debug || ab.debug,
-		Verbose:      verbose,
-		contextStack: make([]string, 0),
-		Batches:      batches,
-		Catalog:      NewCatalog(ab.provider),
-		Coster:       memo.NewDefaultCoster(),
-		ExecBuilder:  rowexec.DefaultBuilder,
+		Debug:           debug || ab.debug,
+		Verbose:         verbose,
+		contextStack:    make([]string, 0),
+		Batches:         batches,
+		Catalog:         NewCatalog(ab.provider),
+		Coster:          memo.NewDefaultCoster(),
+		ExecBuilder:     rowexec.DefaultBuilder,
+		Parser:          sql.GlobalParser,
+		SchemaFormatter: sql.GlobalSchemaFormatter,
 	}
 }
 
@@ -286,6 +293,12 @@ type Analyzer struct {
 	Coster memo.Coster
 	// ExecBuilder converts a sql.Node tree into an executable iterator.
 	ExecBuilder sql.NodeExecBuilder
+	// Runner represents the engine, which is represented as a separate interface to work around circular dependencies
+	Runner sql.StatementRunner
+	// Parser is the parser used to parse SQL statements.
+	Parser sql.Parser
+	// SchemaFormatter is used to format the schema of a node to a string.
+	SchemaFormatter sql.SchemaFormatter
 }
 
 // NewDefault creates a default Analyzer instance with all default Rules and configuration.

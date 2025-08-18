@@ -111,8 +111,9 @@ type ProcContext struct {
 // New takes ctx, catalog, event scheduler, and parser. If the parser is nil, then default parser is mysql parser.
 func New(ctx *sql.Context, cat sql.Catalog, es sql.EventScheduler, p sql.Parser) *Builder {
 	if p == nil {
-		p = sql.NewMysqlParser()
+		p = sql.GlobalParser
 	}
+
 	var state sql.AuthorizationQueryState
 	if cat != nil {
 		state = cat.AuthorizationHandler().NewQueryState(ctx)
@@ -237,6 +238,7 @@ func (b *Builder) buildSubquery(inScope *scope, stmt ast.Statement, subQuery str
 		b.qFlags.Set(sql.QFlagAlterTable)
 		return b.buildAlterTable(inScope, subQuery, n)
 	case *ast.DBDDL:
+		b.qFlags.Set(sql.QFlagDBDDL)
 		return b.buildDBDDL(inScope, n)
 	case *ast.Explain:
 		return b.buildExplain(inScope, n)

@@ -42,49 +42,43 @@ order by
 	l_returnflag,
 	l_linestatus;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [lineitem.l_returnflag:8!null, lineitem.l_linestatus:9!null, sum(lineitem.l_quantity):7!null as sum_qty, sum(lineitem.l_extendedprice):6!null as sum_base_price, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):5!null as sum_disc_price, sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))):4!null as sum_charge, avg(lineitem.l_quantity):2 as avg_qty, avg(lineitem.l_extendedprice):1 as avg_price, avg(lineitem.l_discount):0 as avg_disc, count(1):3!null as count_order]\n" +
+			" ├─ columns: [lineitem.l_returnflag:8!null, lineitem.l_linestatus:9!null, sum(lineitem.l_quantity):7!null->sum_qty:0, sum(lineitem.l_extendedprice):6!null->sum_base_price:0, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):5!null->sum_disc_price:0, sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))):4!null->sum_charge:0, avg(lineitem.l_quantity):2->avg_qty:0, avg(lineitem.l_extendedprice):1->avg_price:0, avg(lineitem.l_discount):0->avg_disc:0, count(1):3!null->count_order:0]\n" +
 			" └─ Sort(lineitem.l_returnflag:8!null ASC nullsFirst, lineitem.l_linestatus:9!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [avg(lineitem.l_discount):0, avg(lineitem.l_extendedprice):1, avg(lineitem.l_quantity):2, count(1):3!null, sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))):4!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):5!null, sum(lineitem.l_extendedprice):6!null, sum(lineitem.l_quantity):7!null, lineitem.l_returnflag:8!null, lineitem.l_linestatus:9!null, sum(lineitem.l_quantity):7!null as sum_qty, sum(lineitem.l_extendedprice):6!null as sum_base_price, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):5!null as sum_disc_price, sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))):4!null as sum_charge, avg(lineitem.l_quantity):2 as avg_qty, avg(lineitem.l_extendedprice):1 as avg_price, avg(lineitem.l_discount):0 as avg_disc, count(1):3!null as count_order]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ select: AVG(lineitem.l_discount:2!null), AVG(lineitem.l_extendedprice:1!null), AVG(lineitem.l_quantity:0!null), COUNT(1 (bigint)), SUM(((lineitem.l_extendedprice:1!null * (1 (tinyint) - lineitem.l_discount:2!null)) * (1 (tinyint) + lineitem.l_tax:3!null))), SUM((lineitem.l_extendedprice:1!null * (1 (tinyint) - lineitem.l_discount:2!null))), SUM(lineitem.l_extendedprice:1!null), SUM(lineitem.l_quantity:0!null), lineitem.l_returnflag:4!null, lineitem.l_linestatus:5!null\n" +
-			"             ├─ group: lineitem.l_returnflag:4!null, lineitem.l_linestatus:5!null\n" +
-			"             └─ Filter\n" +
-			"                 ├─ LessThanOrEqual\n" +
-			"                 │   ├─ lineitem.l_shipdate:6!null\n" +
-			"                 │   └─ 1998-09-02 00:00:00 +0000 UTC (datetime)\n" +
-			"                 └─ ProcessTable\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: lineitem\n" +
-			"                         └─ columns: [l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ select: AVG(lineitem.l_discount:2!null), AVG(lineitem.l_extendedprice:1!null), AVG(lineitem.l_quantity:0!null), COUNT(1 (bigint)), SUM(((lineitem.l_extendedprice:1!null * (1 (tinyint) - lineitem.l_discount:2!null)) * (1 (tinyint) + lineitem.l_tax:3!null))), SUM((lineitem.l_extendedprice:1!null * (1 (tinyint) - lineitem.l_discount:2!null))), SUM(lineitem.l_extendedprice:1!null), SUM(lineitem.l_quantity:0!null), lineitem.l_returnflag:4!null, lineitem.l_linestatus:5!null\n" +
+			"         ├─ group: lineitem.l_returnflag:4!null, lineitem.l_linestatus:5!null\n" +
+			"         └─ Filter\n" +
+			"             ├─ LessThanOrEqual\n" +
+			"             │   ├─ lineitem.l_shipdate:6!null\n" +
+			"             │   └─ 1998-09-02 00:00:00 +0000 UTC (datetime)\n" +
+			"             └─ ProcessTable\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: lineitem\n" +
+			"                     └─ columns: [l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [lineitem.l_returnflag, lineitem.l_linestatus, sum(lineitem.l_quantity) as sum_qty, sum(lineitem.l_extendedprice) as sum_base_price, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as sum_disc_price, sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))) as sum_charge, avg(lineitem.l_quantity) as avg_qty, avg(lineitem.l_extendedprice) as avg_price, avg(lineitem.l_discount) as avg_disc, count(1) as count_order]\n" +
 			" └─ Sort(lineitem.l_returnflag ASC, lineitem.l_linestatus ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [avg(lineitem.l_discount), avg(lineitem.l_extendedprice), avg(lineitem.l_quantity), count(1), sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))), sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))), sum(lineitem.l_extendedprice), sum(lineitem.l_quantity), lineitem.l_returnflag, lineitem.l_linestatus, sum(lineitem.l_quantity) as sum_qty, sum(lineitem.l_extendedprice) as sum_base_price, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as sum_disc_price, sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))) as sum_charge, avg(lineitem.l_quantity) as avg_qty, avg(lineitem.l_extendedprice) as avg_price, avg(lineitem.l_discount) as avg_disc, count(1) as count_order]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(AVG(lineitem.l_discount), AVG(lineitem.l_extendedprice), AVG(lineitem.l_quantity), COUNT(1), SUM(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))), SUM((lineitem.l_extendedprice * (1 - lineitem.l_discount))), SUM(lineitem.l_extendedprice), SUM(lineitem.l_quantity), lineitem.l_returnflag, lineitem.l_linestatus)\n" +
-			"             ├─ Grouping(lineitem.l_returnflag, lineitem.l_linestatus)\n" +
-			"             └─ Filter\n" +
-			"                 ├─ (lineitem.l_shipdate <= 1998-09-02 00:00:00 +0000 UTC)\n" +
-			"                 └─ Table\n" +
-			"                     ├─ name: lineitem\n" +
-			"                     └─ columns: [l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(AVG(lineitem.l_discount), AVG(lineitem.l_extendedprice), AVG(lineitem.l_quantity), COUNT(1), SUM(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))), SUM((lineitem.l_extendedprice * (1 - lineitem.l_discount))), SUM(lineitem.l_extendedprice), SUM(lineitem.l_quantity), lineitem.l_returnflag, lineitem.l_linestatus)\n" +
+			"         ├─ Grouping(lineitem.l_returnflag, lineitem.l_linestatus)\n" +
+			"         └─ Filter\n" +
+			"             ├─ (lineitem.l_shipdate <= 1998-09-02 00:00:00 +0000 UTC)\n" +
+			"             └─ Table\n" +
+			"                 ├─ name: lineitem\n" +
+			"                 └─ columns: [l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [lineitem.l_returnflag, lineitem.l_linestatus, sum(lineitem.l_quantity) as sum_qty, sum(lineitem.l_extendedprice) as sum_base_price, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as sum_disc_price, sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))) as sum_charge, avg(lineitem.l_quantity) as avg_qty, avg(lineitem.l_extendedprice) as avg_price, avg(lineitem.l_discount) as avg_disc, count(1) as count_order]\n" +
 			" └─ Sort(lineitem.l_returnflag ASC, lineitem.l_linestatus ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [avg(lineitem.l_discount), avg(lineitem.l_extendedprice), avg(lineitem.l_quantity), count(1), sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))), sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))), sum(lineitem.l_extendedprice), sum(lineitem.l_quantity), lineitem.l_returnflag, lineitem.l_linestatus, sum(lineitem.l_quantity) as sum_qty, sum(lineitem.l_extendedprice) as sum_base_price, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as sum_disc_price, sum(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))) as sum_charge, avg(lineitem.l_quantity) as avg_qty, avg(lineitem.l_extendedprice) as avg_price, avg(lineitem.l_discount) as avg_disc, count(1) as count_order]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(AVG(lineitem.l_discount), AVG(lineitem.l_extendedprice), AVG(lineitem.l_quantity), COUNT(1), SUM(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))), SUM((lineitem.l_extendedprice * (1 - lineitem.l_discount))), SUM(lineitem.l_extendedprice), SUM(lineitem.l_quantity), lineitem.l_returnflag, lineitem.l_linestatus)\n" +
-			"             ├─ Grouping(lineitem.l_returnflag, lineitem.l_linestatus)\n" +
-			"             └─ Filter\n" +
-			"                 ├─ (lineitem.l_shipdate <= 1998-09-02 00:00:00 +0000 UTC)\n" +
-			"                 └─ Table\n" +
-			"                     ├─ name: lineitem\n" +
-			"                     └─ columns: [l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(AVG(lineitem.l_discount), AVG(lineitem.l_extendedprice), AVG(lineitem.l_quantity), COUNT(1), SUM(((lineitem.l_extendedprice * (1 - lineitem.l_discount)) * (1 + lineitem.l_tax))), SUM((lineitem.l_extendedprice * (1 - lineitem.l_discount))), SUM(lineitem.l_extendedprice), SUM(lineitem.l_quantity), lineitem.l_returnflag, lineitem.l_linestatus)\n" +
+			"         ├─ Grouping(lineitem.l_returnflag, lineitem.l_linestatus)\n" +
+			"         └─ Filter\n" +
+			"             ├─ (lineitem.l_shipdate <= 1998-09-02 00:00:00 +0000 UTC)\n" +
+			"             └─ Table\n" +
+			"                 ├─ name: lineitem\n" +
+			"                 └─ columns: [l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate]\n" +
 			"",
 	},
 	{
@@ -143,7 +137,7 @@ order by
 			"         │       ├─ cacheable: false\n" +
 			"         │       ├─ alias-string: select min(ps_supplycost) from partsupp, supplier, nation, region where p_partkey = ps_partkey and s_suppkey = ps_suppkey and s_nationkey = n_nationkey and n_regionkey = r_regionkey and r_name = 'EUROPE'\n" +
 			"         │       └─ Project\n" +
-			"         │           ├─ columns: [min(partsupp.ps_supplycost):28!null as min(ps_supplycost)]\n" +
+			"         │           ├─ columns: [min(partsupp.ps_supplycost):28!null->min(ps_supplycost):0]\n" +
 			"         │           └─ GroupBy\n" +
 			"         │               ├─ select: MIN(partsupp.ps_supplycost:30!null)\n" +
 			"         │               ├─ group: \n" +
@@ -390,10 +384,10 @@ order by
 	revenue desc,
 	o_orderdate;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [lineitem.l_orderkey:1!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue, orders.o_orderdate:2!null, orders.o_shippriority:3!null]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue DESC nullsFirst, orders.o_orderdate:2!null ASC nullsFirst)\n" +
+			" ├─ columns: [lineitem.l_orderkey:1!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null->revenue:0, orders.o_orderdate:2!null, orders.o_shippriority:3!null]\n" +
+			" └─ Sort(revenue:4!null DESC nullsFirst, orders.o_orderdate:2!null ASC nullsFirst)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null, lineitem.l_orderkey:1!null, orders.o_orderdate:2!null, orders.o_shippriority:3!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue]\n" +
+			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null, lineitem.l_orderkey:1!null, orders.o_orderdate:2!null, orders.o_shippriority:3!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null->revenue:0]\n" +
 			"         └─ GroupBy\n" +
 			"             ├─ select: SUM((lineitem.l_extendedprice:5!null * (1 (tinyint) - lineitem.l_discount:6!null))), lineitem.l_orderkey:4!null, orders.o_orderdate:2!null, orders.o_shippriority:3!null\n" +
 			"             ├─ group: lineitem.l_orderkey:4!null, orders.o_orderdate:2!null, orders.o_shippriority:3!null\n" +
@@ -441,7 +435,7 @@ order by
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [lineitem.l_orderkey, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue, orders.o_orderdate, orders.o_shippriority]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue DESC, orders.o_orderdate ASC)\n" +
+			" └─ Sort(revenue DESC, orders.o_orderdate ASC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))), lineitem.l_orderkey, orders.o_orderdate, orders.o_shippriority, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue]\n" +
 			"         └─ GroupBy\n" +
@@ -471,7 +465,7 @@ order by
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [lineitem.l_orderkey, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue, orders.o_orderdate, orders.o_shippriority]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue DESC, orders.o_orderdate ASC)\n" +
+			" └─ Sort(revenue DESC, orders.o_orderdate ASC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))), lineitem.l_orderkey, orders.o_orderdate, orders.o_shippriority, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue]\n" +
 			"         └─ GroupBy\n" +
@@ -525,101 +519,95 @@ group by
 order by
 	o_orderpriority;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [orders.o_orderpriority:1!null, count(1):0!null as order_count]\n" +
+			" ├─ columns: [orders.o_orderpriority:1!null, count(1):0!null->order_count:0]\n" +
 			" └─ Sort(orders.o_orderpriority:1!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [count(1):0!null, orders.o_orderpriority:1!null, count(1):0!null as order_count]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ select: COUNT(1 (bigint)), orders.o_orderpriority:5!null\n" +
-			"             ├─ group: orders.o_orderpriority:5!null\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [orders.O_ORDERKEY:0!null, orders.O_CUSTKEY:1!null, orders.O_ORDERSTATUS:2!null, orders.O_TOTALPRICE:3!null, orders.O_ORDERDATE:4!null, orders.O_ORDERPRIORITY:5!null, orders.O_CLERK:6!null, orders.O_SHIPPRIORITY:7!null, orders.O_COMMENT:8!null]\n" +
-			"                 └─ MergeJoin\n" +
-			"                     ├─ cmp: Eq\n" +
-			"                     │   ├─ orders.o_orderkey:0!null\n" +
-			"                     │   └─ lineitem.l_orderkey:9!null\n" +
-			"                     ├─ Filter\n" +
-			"                     │   ├─ AND\n" +
-			"                     │   │   ├─ GreaterThanOrEqual\n" +
-			"                     │   │   │   ├─ orders.o_orderdate:4!null\n" +
-			"                     │   │   │   └─ 1993-07-01 (longtext)\n" +
-			"                     │   │   └─ LessThan\n" +
-			"                     │   │       ├─ orders.o_orderdate:4!null\n" +
-			"                     │   │       └─ 1993-10-01 00:00:00 +0000 UTC (datetime)\n" +
-			"                     │   └─ IndexedTableAccess(orders)\n" +
-			"                     │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                     │       ├─ static: [{[NULL, ∞)}]\n" +
-			"                     │       ├─ colSet: (1-9)\n" +
-			"                     │       ├─ tableId: 1\n" +
-			"                     │       └─ Table\n" +
-			"                     │           ├─ name: orders\n" +
-			"                     │           └─ columns: [o_orderkey o_custkey o_orderstatus o_totalprice o_orderdate o_orderpriority o_clerk o_shippriority o_comment]\n" +
-			"                     └─ Project\n" +
-			"                         ├─ columns: [lineitem.l_orderkey:0!null]\n" +
-			"                         └─ Filter\n" +
-			"                             ├─ LessThan\n" +
-			"                             │   ├─ lineitem.l_commitdate:11!null\n" +
-			"                             │   └─ lineitem.l_receiptdate:12!null\n" +
-			"                             └─ IndexedTableAccess(lineitem)\n" +
-			"                                 ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                                 ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                                 ├─ colSet: (10-25)\n" +
-			"                                 ├─ tableId: 2\n" +
-			"                                 └─ Table\n" +
-			"                                     ├─ name: lineitem\n" +
-			"                                     └─ columns: [l_orderkey l_partkey l_suppkey l_linenumber l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate l_commitdate l_receiptdate l_shipinstruct l_shipmode l_comment]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ select: COUNT(1 (bigint)), orders.o_orderpriority:5!null\n" +
+			"         ├─ group: orders.o_orderpriority:5!null\n" +
+			"         └─ Project\n" +
+			"             ├─ columns: [orders.O_ORDERKEY:0!null, orders.O_CUSTKEY:1!null, orders.O_ORDERSTATUS:2!null, orders.O_TOTALPRICE:3!null, orders.O_ORDERDATE:4!null, orders.O_ORDERPRIORITY:5!null, orders.O_CLERK:6!null, orders.O_SHIPPRIORITY:7!null, orders.O_COMMENT:8!null]\n" +
+			"             └─ MergeJoin\n" +
+			"                 ├─ cmp: Eq\n" +
+			"                 │   ├─ orders.o_orderkey:0!null\n" +
+			"                 │   └─ lineitem.l_orderkey:9!null\n" +
+			"                 ├─ Filter\n" +
+			"                 │   ├─ AND\n" +
+			"                 │   │   ├─ GreaterThanOrEqual\n" +
+			"                 │   │   │   ├─ orders.o_orderdate:4!null\n" +
+			"                 │   │   │   └─ 1993-07-01 (longtext)\n" +
+			"                 │   │   └─ LessThan\n" +
+			"                 │   │       ├─ orders.o_orderdate:4!null\n" +
+			"                 │   │       └─ 1993-10-01 00:00:00 +0000 UTC (datetime)\n" +
+			"                 │   └─ IndexedTableAccess(orders)\n" +
+			"                 │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                 │       ├─ static: [{[NULL, ∞)}]\n" +
+			"                 │       ├─ colSet: (1-9)\n" +
+			"                 │       ├─ tableId: 1\n" +
+			"                 │       └─ Table\n" +
+			"                 │           ├─ name: orders\n" +
+			"                 │           └─ columns: [o_orderkey o_custkey o_orderstatus o_totalprice o_orderdate o_orderpriority o_clerk o_shippriority o_comment]\n" +
+			"                 └─ Project\n" +
+			"                     ├─ columns: [lineitem.l_orderkey:0!null]\n" +
+			"                     └─ Filter\n" +
+			"                         ├─ LessThan\n" +
+			"                         │   ├─ lineitem.l_commitdate:11!null\n" +
+			"                         │   └─ lineitem.l_receiptdate:12!null\n" +
+			"                         └─ IndexedTableAccess(lineitem)\n" +
+			"                             ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                             ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                             ├─ colSet: (10-25)\n" +
+			"                             ├─ tableId: 2\n" +
+			"                             └─ Table\n" +
+			"                                 ├─ name: lineitem\n" +
+			"                                 └─ columns: [l_orderkey l_partkey l_suppkey l_linenumber l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate l_commitdate l_receiptdate l_shipinstruct l_shipmode l_comment]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [orders.o_orderpriority, count(1) as order_count]\n" +
 			" └─ Sort(orders.o_orderpriority ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [count(1), orders.o_orderpriority, count(1) as order_count]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(COUNT(1), orders.o_orderpriority)\n" +
-			"             ├─ Grouping(orders.o_orderpriority)\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [orders.O_ORDERKEY, orders.O_CUSTKEY, orders.O_ORDERSTATUS, orders.O_TOTALPRICE, orders.O_ORDERDATE, orders.O_ORDERPRIORITY, orders.O_CLERK, orders.O_SHIPPRIORITY, orders.O_COMMENT]\n" +
-			"                 └─ MergeJoin\n" +
-			"                     ├─ cmp: (orders.o_orderkey = lineitem.l_orderkey)\n" +
-			"                     ├─ Filter\n" +
-			"                     │   ├─ ((orders.o_orderdate >= '1993-07-01') AND (orders.o_orderdate < 1993-10-01 00:00:00 +0000 UTC))\n" +
-			"                     │   └─ IndexedTableAccess(orders)\n" +
-			"                     │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                     │       └─ filters: [{[NULL, ∞)}]\n" +
-			"                     └─ Project\n" +
-			"                         ├─ columns: [lineitem.l_orderkey]\n" +
-			"                         └─ Filter\n" +
-			"                             ├─ (lineitem.l_commitdate < lineitem.l_receiptdate)\n" +
-			"                             └─ IndexedTableAccess(lineitem)\n" +
-			"                                 ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                                 ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                                 └─ columns: [l_orderkey l_partkey l_suppkey l_linenumber l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate l_commitdate l_receiptdate l_shipinstruct l_shipmode l_comment]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(COUNT(1), orders.o_orderpriority)\n" +
+			"         ├─ Grouping(orders.o_orderpriority)\n" +
+			"         └─ Project\n" +
+			"             ├─ columns: [orders.O_ORDERKEY, orders.O_CUSTKEY, orders.O_ORDERSTATUS, orders.O_TOTALPRICE, orders.O_ORDERDATE, orders.O_ORDERPRIORITY, orders.O_CLERK, orders.O_SHIPPRIORITY, orders.O_COMMENT]\n" +
+			"             └─ MergeJoin\n" +
+			"                 ├─ cmp: (orders.o_orderkey = lineitem.l_orderkey)\n" +
+			"                 ├─ Filter\n" +
+			"                 │   ├─ ((orders.o_orderdate >= '1993-07-01') AND (orders.o_orderdate < 1993-10-01 00:00:00 +0000 UTC))\n" +
+			"                 │   └─ IndexedTableAccess(orders)\n" +
+			"                 │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                 │       └─ filters: [{[NULL, ∞)}]\n" +
+			"                 └─ Project\n" +
+			"                     ├─ columns: [lineitem.l_orderkey]\n" +
+			"                     └─ Filter\n" +
+			"                         ├─ (lineitem.l_commitdate < lineitem.l_receiptdate)\n" +
+			"                         └─ IndexedTableAccess(lineitem)\n" +
+			"                             ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                             ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                             └─ columns: [l_orderkey l_partkey l_suppkey l_linenumber l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate l_commitdate l_receiptdate l_shipinstruct l_shipmode l_comment]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [orders.o_orderpriority, count(1) as order_count]\n" +
 			" └─ Sort(orders.o_orderpriority ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [count(1), orders.o_orderpriority, count(1) as order_count]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(COUNT(1), orders.o_orderpriority)\n" +
-			"             ├─ Grouping(orders.o_orderpriority)\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [orders.O_ORDERKEY, orders.O_CUSTKEY, orders.O_ORDERSTATUS, orders.O_TOTALPRICE, orders.O_ORDERDATE, orders.O_ORDERPRIORITY, orders.O_CLERK, orders.O_SHIPPRIORITY, orders.O_COMMENT]\n" +
-			"                 └─ MergeJoin\n" +
-			"                     ├─ cmp: (orders.o_orderkey = lineitem.l_orderkey)\n" +
-			"                     ├─ Filter\n" +
-			"                     │   ├─ ((orders.o_orderdate >= '1993-07-01') AND (orders.o_orderdate < 1993-10-01 00:00:00 +0000 UTC))\n" +
-			"                     │   └─ IndexedTableAccess(orders)\n" +
-			"                     │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                     │       └─ filters: [{[NULL, ∞)}]\n" +
-			"                     └─ Project\n" +
-			"                         ├─ columns: [lineitem.l_orderkey]\n" +
-			"                         └─ Filter\n" +
-			"                             ├─ (lineitem.l_commitdate < lineitem.l_receiptdate)\n" +
-			"                             └─ IndexedTableAccess(lineitem)\n" +
-			"                                 ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                                 ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                                 └─ columns: [l_orderkey l_partkey l_suppkey l_linenumber l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate l_commitdate l_receiptdate l_shipinstruct l_shipmode l_comment]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(COUNT(1), orders.o_orderpriority)\n" +
+			"         ├─ Grouping(orders.o_orderpriority)\n" +
+			"         └─ Project\n" +
+			"             ├─ columns: [orders.O_ORDERKEY, orders.O_CUSTKEY, orders.O_ORDERSTATUS, orders.O_TOTALPRICE, orders.O_ORDERDATE, orders.O_ORDERPRIORITY, orders.O_CLERK, orders.O_SHIPPRIORITY, orders.O_COMMENT]\n" +
+			"             └─ MergeJoin\n" +
+			"                 ├─ cmp: (orders.o_orderkey = lineitem.l_orderkey)\n" +
+			"                 ├─ Filter\n" +
+			"                 │   ├─ ((orders.o_orderdate >= '1993-07-01') AND (orders.o_orderdate < 1993-10-01 00:00:00 +0000 UTC))\n" +
+			"                 │   └─ IndexedTableAccess(orders)\n" +
+			"                 │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                 │       └─ filters: [{[NULL, ∞)}]\n" +
+			"                 └─ Project\n" +
+			"                     ├─ columns: [lineitem.l_orderkey]\n" +
+			"                     └─ Filter\n" +
+			"                         ├─ (lineitem.l_commitdate < lineitem.l_receiptdate)\n" +
+			"                         └─ IndexedTableAccess(lineitem)\n" +
+			"                             ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                             ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                             └─ columns: [l_orderkey l_partkey l_suppkey l_linenumber l_quantity l_extendedprice l_discount l_tax l_returnflag l_linestatus l_shipdate l_commitdate l_receiptdate l_shipinstruct l_shipmode l_comment]\n" +
 			"",
 	},
 	{
@@ -650,10 +638,10 @@ group by
 order by
 	revenue desc;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [nation.n_name:1!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue DESC nullsFirst)\n" +
+			" ├─ columns: [nation.n_name:1!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null->revenue:0]\n" +
+			" └─ Sort(revenue:2!null DESC nullsFirst)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null, nation.n_name:1!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue]\n" +
+			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null, nation.n_name:1!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null->revenue:0]\n" +
 			"         └─ GroupBy\n" +
 			"             ├─ select: SUM((lineitem.l_extendedprice:12!null * (1 (tinyint) - lineitem.l_discount:13!null))), nation.n_name:6!null\n" +
 			"             ├─ group: nation.n_name:6!null\n" +
@@ -728,7 +716,7 @@ order by
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [nation.n_name, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue DESC)\n" +
+			" └─ Sort(revenue DESC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))), nation.n_name, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue]\n" +
 			"         └─ GroupBy\n" +
@@ -770,7 +758,7 @@ order by
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [nation.n_name, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue DESC)\n" +
+			" └─ Sort(revenue DESC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))), nation.n_name, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue]\n" +
 			"         └─ GroupBy\n" +
@@ -824,7 +812,7 @@ where
 	and l_discount between .06 - 0.01 and .06 + 0.01
 	and l_quantity < 24;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [sum((lineitem.l_extendedprice * lineitem.l_discount)):0!null as revenue]\n" +
+			" ├─ columns: [sum((lineitem.l_extendedprice * lineitem.l_discount)):0!null->revenue:0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: SUM((lineitem.l_extendedprice:1!null * lineitem.l_discount:2!null))\n" +
 			"     ├─ group: \n" +
@@ -919,208 +907,202 @@ order by
 	cust_nation,
 	l_year;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [shipping.supp_nation:1!null, shipping.cust_nation:2!null, shipping.l_year:3!null, sum(shipping.volume):0!null as revenue]\n" +
+			" ├─ columns: [shipping.supp_nation:1!null, shipping.cust_nation:2!null, shipping.l_year:3!null, sum(shipping.volume):0!null->revenue:0]\n" +
 			" └─ Sort(shipping.supp_nation:1!null ASC nullsFirst, shipping.cust_nation:2!null ASC nullsFirst, shipping.l_year:3!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(shipping.volume):0!null, shipping.supp_nation:1!null, shipping.cust_nation:2!null, shipping.l_year:3!null, sum(shipping.volume):0!null as revenue]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ select: SUM(shipping.volume:3!null), shipping.supp_nation:0!null, shipping.cust_nation:1!null, shipping.l_year:2!null\n" +
-			"             ├─ group: shipping.supp_nation:0!null, shipping.cust_nation:1!null, shipping.l_year:2!null\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: shipping\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 ├─ colSet: (53-56)\n" +
-			"                 ├─ tableId: 7\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [n1.n_name:12!null as supp_nation, n2.n_name:14!null as cust_nation, extract('YEAR' from lineitem.l_shipdate) as l_year, (lineitem.l_extendedprice:2!null * (1 (tinyint) - lineitem.l_discount:3!null)) as volume]\n" +
-			"                     └─ Filter\n" +
-			"                         ├─ Or\n" +
-			"                         │   ├─ AND\n" +
-			"                         │   │   ├─ Eq\n" +
-			"                         │   │   │   ├─ n1.n_name:12!null\n" +
-			"                         │   │   │   └─ FRANCE (longtext)\n" +
-			"                         │   │   └─ Eq\n" +
-			"                         │   │       ├─ n2.n_name:14!null\n" +
-			"                         │   │       └─ GERMANY (longtext)\n" +
-			"                         │   └─ AND\n" +
-			"                         │       ├─ Eq\n" +
-			"                         │       │   ├─ n1.n_name:12!null\n" +
-			"                         │       │   └─ GERMANY (longtext)\n" +
-			"                         │       └─ Eq\n" +
-			"                         │           ├─ n2.n_name:14!null\n" +
-			"                         │           └─ FRANCE (longtext)\n" +
-			"                         └─ LookupJoin\n" +
-			"                             ├─ LookupJoin\n" +
-			"                             │   ├─ LookupJoin\n" +
-			"                             │   │   ├─ LookupJoin\n" +
-			"                             │   │   │   ├─ MergeJoin\n" +
-			"                             │   │   │   │   ├─ cmp: Eq\n" +
-			"                             │   │   │   │   │   ├─ lineitem.l_orderkey:0!null\n" +
-			"                             │   │   │   │   │   └─ orders.o_orderkey:5!null\n" +
-			"                             │   │   │   │   ├─ Filter\n" +
-			"                             │   │   │   │   │   ├─ AND\n" +
-			"                             │   │   │   │   │   │   ├─ GreaterThanOrEqual\n" +
-			"                             │   │   │   │   │   │   │   ├─ lineitem.l_shipdate:4!null\n" +
-			"                             │   │   │   │   │   │   │   └─ 1995-01-01 (longtext)\n" +
-			"                             │   │   │   │   │   │   └─ LessThanOrEqual\n" +
-			"                             │   │   │   │   │   │       ├─ lineitem.l_shipdate:4!null\n" +
-			"                             │   │   │   │   │   │       └─ 1996-12-31 (longtext)\n" +
-			"                             │   │   │   │   │   └─ IndexedTableAccess(lineitem)\n" +
-			"                             │   │   │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                             │   │   │   │   │       ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                             │   │   │   │   │       ├─ colSet: (8-23)\n" +
-			"                             │   │   │   │   │       ├─ tableId: 2\n" +
-			"                             │   │   │   │   │       └─ Table\n" +
-			"                             │   │   │   │   │           ├─ name: lineitem\n" +
-			"                             │   │   │   │   │           └─ columns: [l_orderkey l_suppkey l_extendedprice l_discount l_shipdate]\n" +
-			"                             │   │   │   │   └─ IndexedTableAccess(orders)\n" +
-			"                             │   │   │   │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                             │   │   │   │       ├─ static: [{[NULL, ∞)}]\n" +
-			"                             │   │   │   │       ├─ colSet: (24-32)\n" +
-			"                             │   │   │   │       ├─ tableId: 3\n" +
-			"                             │   │   │   │       └─ Table\n" +
-			"                             │   │   │   │           ├─ name: orders\n" +
-			"                             │   │   │   │           └─ columns: [o_orderkey o_custkey]\n" +
-			"                             │   │   │   └─ IndexedTableAccess(supplier)\n" +
-			"                             │   │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                             │   │   │       ├─ keys: [lineitem.l_suppkey:1!null]\n" +
-			"                             │   │   │       ├─ colSet: (1-7)\n" +
-			"                             │   │   │       ├─ tableId: 1\n" +
-			"                             │   │   │       └─ Table\n" +
-			"                             │   │   │           ├─ name: supplier\n" +
-			"                             │   │   │           └─ columns: [s_suppkey s_nationkey]\n" +
-			"                             │   │   └─ IndexedTableAccess(customer)\n" +
-			"                             │   │       ├─ index: [customer.C_CUSTKEY]\n" +
-			"                             │   │       ├─ keys: [orders.o_custkey:6!null]\n" +
-			"                             │   │       ├─ colSet: (33-40)\n" +
-			"                             │   │       ├─ tableId: 4\n" +
-			"                             │   │       └─ Table\n" +
-			"                             │   │           ├─ name: customer\n" +
-			"                             │   │           └─ columns: [c_custkey c_nationkey]\n" +
-			"                             │   └─ TableAlias(n1)\n" +
-			"                             │       └─ IndexedTableAccess(nation)\n" +
-			"                             │           ├─ index: [nation.N_NATIONKEY]\n" +
-			"                             │           ├─ keys: [supplier.s_nationkey:8!null]\n" +
-			"                             │           ├─ colSet: (41-44)\n" +
-			"                             │           ├─ tableId: 5\n" +
-			"                             │           └─ Table\n" +
-			"                             │               ├─ name: nation\n" +
-			"                             │               └─ columns: [n_nationkey n_name]\n" +
-			"                             └─ TableAlias(n2)\n" +
-			"                                 └─ IndexedTableAccess(nation)\n" +
-			"                                     ├─ index: [nation.N_NATIONKEY]\n" +
-			"                                     ├─ keys: [customer.c_nationkey:10!null]\n" +
-			"                                     ├─ colSet: (45-48)\n" +
-			"                                     ├─ tableId: 6\n" +
-			"                                     └─ Table\n" +
-			"                                         ├─ name: nation\n" +
-			"                                         └─ columns: [n_nationkey n_name]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ select: SUM(shipping.volume:3!null), shipping.supp_nation:0!null, shipping.cust_nation:1!null, shipping.l_year:2!null\n" +
+			"         ├─ group: shipping.supp_nation:0!null, shipping.cust_nation:1!null, shipping.l_year:2!null\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: shipping\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             ├─ colSet: (53-56)\n" +
+			"             ├─ tableId: 7\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [n1.n_name:12!null->supp_nation:0, n2.n_name:14!null->cust_nation:0, extract('YEAR' from lineitem.l_shipdate)->l_year:0, (lineitem.l_extendedprice:2!null * (1 (tinyint) - lineitem.l_discount:3!null))->volume:0]\n" +
+			"                 └─ Filter\n" +
+			"                     ├─ Or\n" +
+			"                     │   ├─ AND\n" +
+			"                     │   │   ├─ Eq\n" +
+			"                     │   │   │   ├─ n1.n_name:12!null\n" +
+			"                     │   │   │   └─ FRANCE (longtext)\n" +
+			"                     │   │   └─ Eq\n" +
+			"                     │   │       ├─ n2.n_name:14!null\n" +
+			"                     │   │       └─ GERMANY (longtext)\n" +
+			"                     │   └─ AND\n" +
+			"                     │       ├─ Eq\n" +
+			"                     │       │   ├─ n1.n_name:12!null\n" +
+			"                     │       │   └─ GERMANY (longtext)\n" +
+			"                     │       └─ Eq\n" +
+			"                     │           ├─ n2.n_name:14!null\n" +
+			"                     │           └─ FRANCE (longtext)\n" +
+			"                     └─ LookupJoin\n" +
+			"                         ├─ LookupJoin\n" +
+			"                         │   ├─ LookupJoin\n" +
+			"                         │   │   ├─ LookupJoin\n" +
+			"                         │   │   │   ├─ MergeJoin\n" +
+			"                         │   │   │   │   ├─ cmp: Eq\n" +
+			"                         │   │   │   │   │   ├─ lineitem.l_orderkey:0!null\n" +
+			"                         │   │   │   │   │   └─ orders.o_orderkey:5!null\n" +
+			"                         │   │   │   │   ├─ Filter\n" +
+			"                         │   │   │   │   │   ├─ AND\n" +
+			"                         │   │   │   │   │   │   ├─ GreaterThanOrEqual\n" +
+			"                         │   │   │   │   │   │   │   ├─ lineitem.l_shipdate:4!null\n" +
+			"                         │   │   │   │   │   │   │   └─ 1995-01-01 (longtext)\n" +
+			"                         │   │   │   │   │   │   └─ LessThanOrEqual\n" +
+			"                         │   │   │   │   │   │       ├─ lineitem.l_shipdate:4!null\n" +
+			"                         │   │   │   │   │   │       └─ 1996-12-31 (longtext)\n" +
+			"                         │   │   │   │   │   └─ IndexedTableAccess(lineitem)\n" +
+			"                         │   │   │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                         │   │   │   │   │       ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                         │   │   │   │   │       ├─ colSet: (8-23)\n" +
+			"                         │   │   │   │   │       ├─ tableId: 2\n" +
+			"                         │   │   │   │   │       └─ Table\n" +
+			"                         │   │   │   │   │           ├─ name: lineitem\n" +
+			"                         │   │   │   │   │           └─ columns: [l_orderkey l_suppkey l_extendedprice l_discount l_shipdate]\n" +
+			"                         │   │   │   │   └─ IndexedTableAccess(orders)\n" +
+			"                         │   │   │   │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                         │   │   │   │       ├─ static: [{[NULL, ∞)}]\n" +
+			"                         │   │   │   │       ├─ colSet: (24-32)\n" +
+			"                         │   │   │   │       ├─ tableId: 3\n" +
+			"                         │   │   │   │       └─ Table\n" +
+			"                         │   │   │   │           ├─ name: orders\n" +
+			"                         │   │   │   │           └─ columns: [o_orderkey o_custkey]\n" +
+			"                         │   │   │   └─ IndexedTableAccess(supplier)\n" +
+			"                         │   │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                         │   │   │       ├─ keys: [lineitem.l_suppkey:1!null]\n" +
+			"                         │   │   │       ├─ colSet: (1-7)\n" +
+			"                         │   │   │       ├─ tableId: 1\n" +
+			"                         │   │   │       └─ Table\n" +
+			"                         │   │   │           ├─ name: supplier\n" +
+			"                         │   │   │           └─ columns: [s_suppkey s_nationkey]\n" +
+			"                         │   │   └─ IndexedTableAccess(customer)\n" +
+			"                         │   │       ├─ index: [customer.C_CUSTKEY]\n" +
+			"                         │   │       ├─ keys: [orders.o_custkey:6!null]\n" +
+			"                         │   │       ├─ colSet: (33-40)\n" +
+			"                         │   │       ├─ tableId: 4\n" +
+			"                         │   │       └─ Table\n" +
+			"                         │   │           ├─ name: customer\n" +
+			"                         │   │           └─ columns: [c_custkey c_nationkey]\n" +
+			"                         │   └─ TableAlias(n1)\n" +
+			"                         │       └─ IndexedTableAccess(nation)\n" +
+			"                         │           ├─ index: [nation.N_NATIONKEY]\n" +
+			"                         │           ├─ keys: [supplier.s_nationkey:8!null]\n" +
+			"                         │           ├─ colSet: (41-44)\n" +
+			"                         │           ├─ tableId: 5\n" +
+			"                         │           └─ Table\n" +
+			"                         │               ├─ name: nation\n" +
+			"                         │               └─ columns: [n_nationkey n_name]\n" +
+			"                         └─ TableAlias(n2)\n" +
+			"                             └─ IndexedTableAccess(nation)\n" +
+			"                                 ├─ index: [nation.N_NATIONKEY]\n" +
+			"                                 ├─ keys: [customer.c_nationkey:10!null]\n" +
+			"                                 ├─ colSet: (45-48)\n" +
+			"                                 ├─ tableId: 6\n" +
+			"                                 └─ Table\n" +
+			"                                     ├─ name: nation\n" +
+			"                                     └─ columns: [n_nationkey n_name]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [shipping.supp_nation, shipping.cust_nation, shipping.l_year, sum(shipping.volume) as revenue]\n" +
 			" └─ Sort(shipping.supp_nation ASC, shipping.cust_nation ASC, shipping.l_year ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(shipping.volume), shipping.supp_nation, shipping.cust_nation, shipping.l_year, sum(shipping.volume) as revenue]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(SUM(shipping.volume), shipping.supp_nation, shipping.cust_nation, shipping.l_year)\n" +
-			"             ├─ Grouping(shipping.supp_nation, shipping.cust_nation, shipping.l_year)\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: shipping\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [n1.n_name as supp_nation, n2.n_name as cust_nation, extract('YEAR' from lineitem.l_shipdate) as l_year, (lineitem.l_extendedprice * (1 - lineitem.l_discount)) as volume]\n" +
-			"                     └─ Filter\n" +
-			"                         ├─ (((n1.n_name = 'FRANCE') AND (n2.n_name = 'GERMANY')) OR ((n1.n_name = 'GERMANY') AND (n2.n_name = 'FRANCE')))\n" +
-			"                         └─ LookupJoin\n" +
-			"                             ├─ LookupJoin\n" +
-			"                             │   ├─ LookupJoin\n" +
-			"                             │   │   ├─ LookupJoin\n" +
-			"                             │   │   │   ├─ MergeJoin\n" +
-			"                             │   │   │   │   ├─ cmp: (lineitem.l_orderkey = orders.o_orderkey)\n" +
-			"                             │   │   │   │   ├─ Filter\n" +
-			"                             │   │   │   │   │   ├─ ((lineitem.l_shipdate >= '1995-01-01') AND (lineitem.l_shipdate <= '1996-12-31'))\n" +
-			"                             │   │   │   │   │   └─ IndexedTableAccess(lineitem)\n" +
-			"                             │   │   │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                             │   │   │   │   │       ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                             │   │   │   │   │       └─ columns: [l_orderkey l_suppkey l_extendedprice l_discount l_shipdate]\n" +
-			"                             │   │   │   │   └─ IndexedTableAccess(orders)\n" +
-			"                             │   │   │   │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                             │   │   │   │       ├─ filters: [{[NULL, ∞)}]\n" +
-			"                             │   │   │   │       └─ columns: [o_orderkey o_custkey]\n" +
-			"                             │   │   │   └─ IndexedTableAccess(supplier)\n" +
-			"                             │   │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                             │   │   │       ├─ columns: [s_suppkey s_nationkey]\n" +
-			"                             │   │   │       └─ keys: lineitem.l_suppkey\n" +
-			"                             │   │   └─ IndexedTableAccess(customer)\n" +
-			"                             │   │       ├─ index: [customer.C_CUSTKEY]\n" +
-			"                             │   │       ├─ columns: [c_custkey c_nationkey]\n" +
-			"                             │   │       └─ keys: orders.o_custkey\n" +
-			"                             │   └─ TableAlias(n1)\n" +
-			"                             │       └─ IndexedTableAccess(nation)\n" +
-			"                             │           ├─ index: [nation.N_NATIONKEY]\n" +
-			"                             │           ├─ columns: [n_nationkey n_name]\n" +
-			"                             │           └─ keys: supplier.s_nationkey\n" +
-			"                             └─ TableAlias(n2)\n" +
-			"                                 └─ IndexedTableAccess(nation)\n" +
-			"                                     ├─ index: [nation.N_NATIONKEY]\n" +
-			"                                     ├─ columns: [n_nationkey n_name]\n" +
-			"                                     └─ keys: customer.c_nationkey\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(SUM(shipping.volume), shipping.supp_nation, shipping.cust_nation, shipping.l_year)\n" +
+			"         ├─ Grouping(shipping.supp_nation, shipping.cust_nation, shipping.l_year)\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: shipping\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [n1.n_name as supp_nation, n2.n_name as cust_nation, extract('YEAR' from lineitem.l_shipdate) as l_year, (lineitem.l_extendedprice * (1 - lineitem.l_discount)) as volume]\n" +
+			"                 └─ Filter\n" +
+			"                     ├─ (((n1.n_name = 'FRANCE') AND (n2.n_name = 'GERMANY')) OR ((n1.n_name = 'GERMANY') AND (n2.n_name = 'FRANCE')))\n" +
+			"                     └─ LookupJoin\n" +
+			"                         ├─ LookupJoin\n" +
+			"                         │   ├─ LookupJoin\n" +
+			"                         │   │   ├─ LookupJoin\n" +
+			"                         │   │   │   ├─ MergeJoin\n" +
+			"                         │   │   │   │   ├─ cmp: (lineitem.l_orderkey = orders.o_orderkey)\n" +
+			"                         │   │   │   │   ├─ Filter\n" +
+			"                         │   │   │   │   │   ├─ ((lineitem.l_shipdate >= '1995-01-01') AND (lineitem.l_shipdate <= '1996-12-31'))\n" +
+			"                         │   │   │   │   │   └─ IndexedTableAccess(lineitem)\n" +
+			"                         │   │   │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                         │   │   │   │   │       ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                         │   │   │   │   │       └─ columns: [l_orderkey l_suppkey l_extendedprice l_discount l_shipdate]\n" +
+			"                         │   │   │   │   └─ IndexedTableAccess(orders)\n" +
+			"                         │   │   │   │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                         │   │   │   │       ├─ filters: [{[NULL, ∞)}]\n" +
+			"                         │   │   │   │       └─ columns: [o_orderkey o_custkey]\n" +
+			"                         │   │   │   └─ IndexedTableAccess(supplier)\n" +
+			"                         │   │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                         │   │   │       ├─ columns: [s_suppkey s_nationkey]\n" +
+			"                         │   │   │       └─ keys: lineitem.l_suppkey\n" +
+			"                         │   │   └─ IndexedTableAccess(customer)\n" +
+			"                         │   │       ├─ index: [customer.C_CUSTKEY]\n" +
+			"                         │   │       ├─ columns: [c_custkey c_nationkey]\n" +
+			"                         │   │       └─ keys: orders.o_custkey\n" +
+			"                         │   └─ TableAlias(n1)\n" +
+			"                         │       └─ IndexedTableAccess(nation)\n" +
+			"                         │           ├─ index: [nation.N_NATIONKEY]\n" +
+			"                         │           ├─ columns: [n_nationkey n_name]\n" +
+			"                         │           └─ keys: supplier.s_nationkey\n" +
+			"                         └─ TableAlias(n2)\n" +
+			"                             └─ IndexedTableAccess(nation)\n" +
+			"                                 ├─ index: [nation.N_NATIONKEY]\n" +
+			"                                 ├─ columns: [n_nationkey n_name]\n" +
+			"                                 └─ keys: customer.c_nationkey\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [shipping.supp_nation, shipping.cust_nation, shipping.l_year, sum(shipping.volume) as revenue]\n" +
 			" └─ Sort(shipping.supp_nation ASC, shipping.cust_nation ASC, shipping.l_year ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(shipping.volume), shipping.supp_nation, shipping.cust_nation, shipping.l_year, sum(shipping.volume) as revenue]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(SUM(shipping.volume), shipping.supp_nation, shipping.cust_nation, shipping.l_year)\n" +
-			"             ├─ Grouping(shipping.supp_nation, shipping.cust_nation, shipping.l_year)\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: shipping\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [n1.n_name as supp_nation, n2.n_name as cust_nation, extract('YEAR' from lineitem.l_shipdate) as l_year, (lineitem.l_extendedprice * (1 - lineitem.l_discount)) as volume]\n" +
-			"                     └─ Filter\n" +
-			"                         ├─ (((n1.n_name = 'FRANCE') AND (n2.n_name = 'GERMANY')) OR ((n1.n_name = 'GERMANY') AND (n2.n_name = 'FRANCE')))\n" +
-			"                         └─ LookupJoin\n" +
-			"                             ├─ LookupJoin\n" +
-			"                             │   ├─ LookupJoin\n" +
-			"                             │   │   ├─ LookupJoin\n" +
-			"                             │   │   │   ├─ MergeJoin\n" +
-			"                             │   │   │   │   ├─ cmp: (lineitem.l_orderkey = orders.o_orderkey)\n" +
-			"                             │   │   │   │   ├─ Filter\n" +
-			"                             │   │   │   │   │   ├─ ((lineitem.l_shipdate >= '1995-01-01') AND (lineitem.l_shipdate <= '1996-12-31'))\n" +
-			"                             │   │   │   │   │   └─ IndexedTableAccess(lineitem)\n" +
-			"                             │   │   │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                             │   │   │   │   │       ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                             │   │   │   │   │       └─ columns: [l_orderkey l_suppkey l_extendedprice l_discount l_shipdate]\n" +
-			"                             │   │   │   │   └─ IndexedTableAccess(orders)\n" +
-			"                             │   │   │   │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                             │   │   │   │       ├─ filters: [{[NULL, ∞)}]\n" +
-			"                             │   │   │   │       └─ columns: [o_orderkey o_custkey]\n" +
-			"                             │   │   │   └─ IndexedTableAccess(supplier)\n" +
-			"                             │   │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                             │   │   │       ├─ columns: [s_suppkey s_nationkey]\n" +
-			"                             │   │   │       └─ keys: lineitem.l_suppkey\n" +
-			"                             │   │   └─ IndexedTableAccess(customer)\n" +
-			"                             │   │       ├─ index: [customer.C_CUSTKEY]\n" +
-			"                             │   │       ├─ columns: [c_custkey c_nationkey]\n" +
-			"                             │   │       └─ keys: orders.o_custkey\n" +
-			"                             │   └─ TableAlias(n1)\n" +
-			"                             │       └─ IndexedTableAccess(nation)\n" +
-			"                             │           ├─ index: [nation.N_NATIONKEY]\n" +
-			"                             │           ├─ columns: [n_nationkey n_name]\n" +
-			"                             │           └─ keys: supplier.s_nationkey\n" +
-			"                             └─ TableAlias(n2)\n" +
-			"                                 └─ IndexedTableAccess(nation)\n" +
-			"                                     ├─ index: [nation.N_NATIONKEY]\n" +
-			"                                     ├─ columns: [n_nationkey n_name]\n" +
-			"                                     └─ keys: customer.c_nationkey\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(SUM(shipping.volume), shipping.supp_nation, shipping.cust_nation, shipping.l_year)\n" +
+			"         ├─ Grouping(shipping.supp_nation, shipping.cust_nation, shipping.l_year)\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: shipping\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [n1.n_name as supp_nation, n2.n_name as cust_nation, extract('YEAR' from lineitem.l_shipdate) as l_year, (lineitem.l_extendedprice * (1 - lineitem.l_discount)) as volume]\n" +
+			"                 └─ Filter\n" +
+			"                     ├─ (((n1.n_name = 'FRANCE') AND (n2.n_name = 'GERMANY')) OR ((n1.n_name = 'GERMANY') AND (n2.n_name = 'FRANCE')))\n" +
+			"                     └─ LookupJoin\n" +
+			"                         ├─ LookupJoin\n" +
+			"                         │   ├─ LookupJoin\n" +
+			"                         │   │   ├─ LookupJoin\n" +
+			"                         │   │   │   ├─ MergeJoin\n" +
+			"                         │   │   │   │   ├─ cmp: (lineitem.l_orderkey = orders.o_orderkey)\n" +
+			"                         │   │   │   │   ├─ Filter\n" +
+			"                         │   │   │   │   │   ├─ ((lineitem.l_shipdate >= '1995-01-01') AND (lineitem.l_shipdate <= '1996-12-31'))\n" +
+			"                         │   │   │   │   │   └─ IndexedTableAccess(lineitem)\n" +
+			"                         │   │   │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                         │   │   │   │   │       ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                         │   │   │   │   │       └─ columns: [l_orderkey l_suppkey l_extendedprice l_discount l_shipdate]\n" +
+			"                         │   │   │   │   └─ IndexedTableAccess(orders)\n" +
+			"                         │   │   │   │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                         │   │   │   │       ├─ filters: [{[NULL, ∞)}]\n" +
+			"                         │   │   │   │       └─ columns: [o_orderkey o_custkey]\n" +
+			"                         │   │   │   └─ IndexedTableAccess(supplier)\n" +
+			"                         │   │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                         │   │   │       ├─ columns: [s_suppkey s_nationkey]\n" +
+			"                         │   │   │       └─ keys: lineitem.l_suppkey\n" +
+			"                         │   │   └─ IndexedTableAccess(customer)\n" +
+			"                         │   │       ├─ index: [customer.C_CUSTKEY]\n" +
+			"                         │   │       ├─ columns: [c_custkey c_nationkey]\n" +
+			"                         │   │       └─ keys: orders.o_custkey\n" +
+			"                         │   └─ TableAlias(n1)\n" +
+			"                         │       └─ IndexedTableAccess(nation)\n" +
+			"                         │           ├─ index: [nation.N_NATIONKEY]\n" +
+			"                         │           ├─ columns: [n_nationkey n_name]\n" +
+			"                         │           └─ keys: supplier.s_nationkey\n" +
+			"                         └─ TableAlias(n2)\n" +
+			"                             └─ IndexedTableAccess(nation)\n" +
+			"                                 ├─ index: [nation.N_NATIONKEY]\n" +
+			"                                 ├─ columns: [n_nationkey n_name]\n" +
+			"                                 └─ keys: customer.c_nationkey\n" +
 			"",
 	},
 	{
@@ -1164,235 +1146,229 @@ group by
 order by
 	o_year;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [all_nations.o_year:2!null, (sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end):0!null / sum(all_nations.volume):1!null) as mkt_share]\n" +
+			" ├─ columns: [all_nations.o_year:2!null, (sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end):0!null / sum(all_nations.volume):1!null)->mkt_share:0]\n" +
 			" └─ Sort(all_nations.o_year:2!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end):0!null, sum(all_nations.volume):1!null, all_nations.o_year:2!null, (sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end):0!null / sum(all_nations.volume):1!null) as mkt_share]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ select: SUM(CASE  WHEN Eq\n" +
-			"             │   ├─ all_nations.nation:2!null\n" +
-			"             │   └─ BRAZIL (longtext)\n" +
-			"             │   THEN all_nations.volume:1!null ELSE 0 (tinyint) END), SUM(all_nations.volume:1!null), all_nations.o_year:0!null\n" +
-			"             ├─ group: all_nations.o_year:0!null\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: all_nations\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 ├─ colSet: (64-66)\n" +
-			"                 ├─ tableId: 9\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [extract('YEAR' from orders.o_orderdate) as o_year, (lineitem.l_extendedprice:12!null * (1 (tinyint) - lineitem.l_discount:13!null)) as volume, n2.n_name:19!null as nation]\n" +
-			"                     └─ LookupJoin\n" +
-			"                         ├─ LookupJoin\n" +
-			"                         │   ├─ LookupJoin\n" +
-			"                         │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   │   │   ├─ Filter\n" +
-			"                         │   │   │   │   │   │   │   ├─ AND\n" +
-			"                         │   │   │   │   │   │   │   │   ├─ GreaterThanOrEqual\n" +
-			"                         │   │   │   │   │   │   │   │   │   ├─ orders.o_orderdate:2!null\n" +
-			"                         │   │   │   │   │   │   │   │   │   └─ 1995-01-01 (longtext)\n" +
-			"                         │   │   │   │   │   │   │   │   └─ LessThanOrEqual\n" +
-			"                         │   │   │   │   │   │   │   │       ├─ orders.o_orderdate:2!null\n" +
-			"                         │   │   │   │   │   │   │   │       └─ 1996-12-31 (longtext)\n" +
-			"                         │   │   │   │   │   │   │   └─ Table\n" +
-			"                         │   │   │   │   │   │   │       ├─ name: orders\n" +
-			"                         │   │   │   │   │   │   │       ├─ columns: [o_orderkey o_custkey o_orderdate]\n" +
-			"                         │   │   │   │   │   │   │       ├─ colSet: (33-41)\n" +
-			"                         │   │   │   │   │   │   │       └─ tableId: 4\n" +
-			"                         │   │   │   │   │   │   └─ IndexedTableAccess(customer)\n" +
-			"                         │   │   │   │   │   │       ├─ index: [customer.C_CUSTKEY]\n" +
-			"                         │   │   │   │   │   │       ├─ keys: [orders.o_custkey:1!null]\n" +
-			"                         │   │   │   │   │   │       ├─ colSet: (42-49)\n" +
-			"                         │   │   │   │   │   │       ├─ tableId: 5\n" +
-			"                         │   │   │   │   │   │       └─ Table\n" +
-			"                         │   │   │   │   │   │           ├─ name: customer\n" +
-			"                         │   │   │   │   │   │           └─ columns: [c_custkey c_nationkey]\n" +
-			"                         │   │   │   │   │   └─ TableAlias(n1)\n" +
-			"                         │   │   │   │   │       └─ IndexedTableAccess(nation)\n" +
-			"                         │   │   │   │   │           ├─ index: [nation.N_NATIONKEY]\n" +
-			"                         │   │   │   │   │           ├─ keys: [customer.c_nationkey:4!null]\n" +
-			"                         │   │   │   │   │           ├─ colSet: (50-53)\n" +
-			"                         │   │   │   │   │           ├─ tableId: 6\n" +
-			"                         │   │   │   │   │           └─ Table\n" +
-			"                         │   │   │   │   │               ├─ name: nation\n" +
-			"                         │   │   │   │   │               └─ columns: [n_nationkey n_regionkey]\n" +
-			"                         │   │   │   │   └─ Filter\n" +
-			"                         │   │   │   │       ├─ Eq\n" +
-			"                         │   │   │   │       │   ├─ region.r_name:1!null\n" +
-			"                         │   │   │   │       │   └─ AMERICA (longtext)\n" +
-			"                         │   │   │   │       └─ IndexedTableAccess(region)\n" +
-			"                         │   │   │   │           ├─ index: [region.R_REGIONKEY]\n" +
-			"                         │   │   │   │           ├─ keys: [n1.n_regionkey:6!null]\n" +
-			"                         │   │   │   │           ├─ colSet: (58-60)\n" +
-			"                         │   │   │   │           ├─ tableId: 8\n" +
-			"                         │   │   │   │           └─ Table\n" +
-			"                         │   │   │   │               ├─ name: region\n" +
-			"                         │   │   │   │               └─ columns: [r_regionkey r_name]\n" +
-			"                         │   │   │   └─ IndexedTableAccess(lineitem)\n" +
-			"                         │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         │   │   │       ├─ keys: [orders.o_orderkey:0!null]\n" +
-			"                         │   │   │       ├─ colSet: (17-32)\n" +
-			"                         │   │   │       ├─ tableId: 3\n" +
-			"                         │   │   │       └─ Table\n" +
-			"                         │   │   │           ├─ name: lineitem\n" +
-			"                         │   │   │           └─ columns: [l_orderkey l_partkey l_suppkey l_extendedprice l_discount]\n" +
-			"                         │   │   └─ IndexedTableAccess(supplier)\n" +
-			"                         │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                         │   │       ├─ keys: [lineitem.l_suppkey:11!null]\n" +
-			"                         │   │       ├─ colSet: (10-16)\n" +
-			"                         │   │       ├─ tableId: 2\n" +
-			"                         │   │       └─ Table\n" +
-			"                         │   │           ├─ name: supplier\n" +
-			"                         │   │           └─ columns: [s_suppkey s_nationkey]\n" +
-			"                         │   └─ Filter\n" +
-			"                         │       ├─ Eq\n" +
-			"                         │       │   ├─ part.p_type:1!null\n" +
-			"                         │       │   └─ ECONOMY ANODIZED STEEL (longtext)\n" +
-			"                         │       └─ IndexedTableAccess(part)\n" +
-			"                         │           ├─ index: [part.P_PARTKEY]\n" +
-			"                         │           ├─ keys: [lineitem.l_partkey:10!null]\n" +
-			"                         │           ├─ colSet: (1-9)\n" +
-			"                         │           ├─ tableId: 1\n" +
-			"                         │           └─ Table\n" +
-			"                         │               ├─ name: part\n" +
-			"                         │               └─ columns: [p_partkey p_type]\n" +
-			"                         └─ TableAlias(n2)\n" +
-			"                             └─ IndexedTableAccess(nation)\n" +
-			"                                 ├─ index: [nation.N_NATIONKEY]\n" +
-			"                                 ├─ keys: [supplier.s_nationkey:15!null]\n" +
-			"                                 ├─ colSet: (54-57)\n" +
-			"                                 ├─ tableId: 7\n" +
-			"                                 └─ Table\n" +
-			"                                     ├─ name: nation\n" +
-			"                                     └─ columns: [n_nationkey n_name]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ select: SUM(CASE  WHEN Eq\n" +
+			"         │   ├─ all_nations.nation:2!null\n" +
+			"         │   └─ BRAZIL (longtext)\n" +
+			"         │   THEN all_nations.volume:1!null ELSE 0 (tinyint) END), SUM(all_nations.volume:1!null), all_nations.o_year:0!null\n" +
+			"         ├─ group: all_nations.o_year:0!null\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: all_nations\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             ├─ colSet: (64-66)\n" +
+			"             ├─ tableId: 9\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [extract('YEAR' from orders.o_orderdate)->o_year:0, (lineitem.l_extendedprice:12!null * (1 (tinyint) - lineitem.l_discount:13!null))->volume:0, n2.n_name:19!null->nation:0]\n" +
+			"                 └─ LookupJoin\n" +
+			"                     ├─ LookupJoin\n" +
+			"                     │   ├─ LookupJoin\n" +
+			"                     │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   │   │   ├─ Filter\n" +
+			"                     │   │   │   │   │   │   │   ├─ AND\n" +
+			"                     │   │   │   │   │   │   │   │   ├─ GreaterThanOrEqual\n" +
+			"                     │   │   │   │   │   │   │   │   │   ├─ orders.o_orderdate:2!null\n" +
+			"                     │   │   │   │   │   │   │   │   │   └─ 1995-01-01 (longtext)\n" +
+			"                     │   │   │   │   │   │   │   │   └─ LessThanOrEqual\n" +
+			"                     │   │   │   │   │   │   │   │       ├─ orders.o_orderdate:2!null\n" +
+			"                     │   │   │   │   │   │   │   │       └─ 1996-12-31 (longtext)\n" +
+			"                     │   │   │   │   │   │   │   └─ Table\n" +
+			"                     │   │   │   │   │   │   │       ├─ name: orders\n" +
+			"                     │   │   │   │   │   │   │       ├─ columns: [o_orderkey o_custkey o_orderdate]\n" +
+			"                     │   │   │   │   │   │   │       ├─ colSet: (33-41)\n" +
+			"                     │   │   │   │   │   │   │       └─ tableId: 4\n" +
+			"                     │   │   │   │   │   │   └─ IndexedTableAccess(customer)\n" +
+			"                     │   │   │   │   │   │       ├─ index: [customer.C_CUSTKEY]\n" +
+			"                     │   │   │   │   │   │       ├─ keys: [orders.o_custkey:1!null]\n" +
+			"                     │   │   │   │   │   │       ├─ colSet: (42-49)\n" +
+			"                     │   │   │   │   │   │       ├─ tableId: 5\n" +
+			"                     │   │   │   │   │   │       └─ Table\n" +
+			"                     │   │   │   │   │   │           ├─ name: customer\n" +
+			"                     │   │   │   │   │   │           └─ columns: [c_custkey c_nationkey]\n" +
+			"                     │   │   │   │   │   └─ TableAlias(n1)\n" +
+			"                     │   │   │   │   │       └─ IndexedTableAccess(nation)\n" +
+			"                     │   │   │   │   │           ├─ index: [nation.N_NATIONKEY]\n" +
+			"                     │   │   │   │   │           ├─ keys: [customer.c_nationkey:4!null]\n" +
+			"                     │   │   │   │   │           ├─ colSet: (50-53)\n" +
+			"                     │   │   │   │   │           ├─ tableId: 6\n" +
+			"                     │   │   │   │   │           └─ Table\n" +
+			"                     │   │   │   │   │               ├─ name: nation\n" +
+			"                     │   │   │   │   │               └─ columns: [n_nationkey n_regionkey]\n" +
+			"                     │   │   │   │   └─ Filter\n" +
+			"                     │   │   │   │       ├─ Eq\n" +
+			"                     │   │   │   │       │   ├─ region.r_name:1!null\n" +
+			"                     │   │   │   │       │   └─ AMERICA (longtext)\n" +
+			"                     │   │   │   │       └─ IndexedTableAccess(region)\n" +
+			"                     │   │   │   │           ├─ index: [region.R_REGIONKEY]\n" +
+			"                     │   │   │   │           ├─ keys: [n1.n_regionkey:6!null]\n" +
+			"                     │   │   │   │           ├─ colSet: (58-60)\n" +
+			"                     │   │   │   │           ├─ tableId: 8\n" +
+			"                     │   │   │   │           └─ Table\n" +
+			"                     │   │   │   │               ├─ name: region\n" +
+			"                     │   │   │   │               └─ columns: [r_regionkey r_name]\n" +
+			"                     │   │   │   └─ IndexedTableAccess(lineitem)\n" +
+			"                     │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     │   │   │       ├─ keys: [orders.o_orderkey:0!null]\n" +
+			"                     │   │   │       ├─ colSet: (17-32)\n" +
+			"                     │   │   │       ├─ tableId: 3\n" +
+			"                     │   │   │       └─ Table\n" +
+			"                     │   │   │           ├─ name: lineitem\n" +
+			"                     │   │   │           └─ columns: [l_orderkey l_partkey l_suppkey l_extendedprice l_discount]\n" +
+			"                     │   │   └─ IndexedTableAccess(supplier)\n" +
+			"                     │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                     │   │       ├─ keys: [lineitem.l_suppkey:11!null]\n" +
+			"                     │   │       ├─ colSet: (10-16)\n" +
+			"                     │   │       ├─ tableId: 2\n" +
+			"                     │   │       └─ Table\n" +
+			"                     │   │           ├─ name: supplier\n" +
+			"                     │   │           └─ columns: [s_suppkey s_nationkey]\n" +
+			"                     │   └─ Filter\n" +
+			"                     │       ├─ Eq\n" +
+			"                     │       │   ├─ part.p_type:1!null\n" +
+			"                     │       │   └─ ECONOMY ANODIZED STEEL (longtext)\n" +
+			"                     │       └─ IndexedTableAccess(part)\n" +
+			"                     │           ├─ index: [part.P_PARTKEY]\n" +
+			"                     │           ├─ keys: [lineitem.l_partkey:10!null]\n" +
+			"                     │           ├─ colSet: (1-9)\n" +
+			"                     │           ├─ tableId: 1\n" +
+			"                     │           └─ Table\n" +
+			"                     │               ├─ name: part\n" +
+			"                     │               └─ columns: [p_partkey p_type]\n" +
+			"                     └─ TableAlias(n2)\n" +
+			"                         └─ IndexedTableAccess(nation)\n" +
+			"                             ├─ index: [nation.N_NATIONKEY]\n" +
+			"                             ├─ keys: [supplier.s_nationkey:15!null]\n" +
+			"                             ├─ colSet: (54-57)\n" +
+			"                             ├─ tableId: 7\n" +
+			"                             └─ Table\n" +
+			"                                 ├─ name: nation\n" +
+			"                                 └─ columns: [n_nationkey n_name]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [all_nations.o_year, (sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end) / sum(all_nations.volume)) as mkt_share]\n" +
 			" └─ Sort(all_nations.o_year ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end), sum(all_nations.volume), all_nations.o_year, (sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end) / sum(all_nations.volume)) as mkt_share]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(SUM(CASE  WHEN (all_nations.nation = 'BRAZIL') THEN all_nations.volume ELSE 0 END), SUM(all_nations.volume), all_nations.o_year)\n" +
-			"             ├─ Grouping(all_nations.o_year)\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: all_nations\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [extract('YEAR' from orders.o_orderdate) as o_year, (lineitem.l_extendedprice * (1 - lineitem.l_discount)) as volume, n2.n_name as nation]\n" +
-			"                     └─ LookupJoin\n" +
-			"                         ├─ LookupJoin\n" +
-			"                         │   ├─ LookupJoin\n" +
-			"                         │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   │   │   ├─ Filter\n" +
-			"                         │   │   │   │   │   │   │   ├─ ((orders.o_orderdate >= '1995-01-01') AND (orders.o_orderdate <= '1996-12-31'))\n" +
-			"                         │   │   │   │   │   │   │   └─ Table\n" +
-			"                         │   │   │   │   │   │   │       ├─ name: orders\n" +
-			"                         │   │   │   │   │   │   │       └─ columns: [o_orderkey o_custkey o_orderdate]\n" +
-			"                         │   │   │   │   │   │   └─ IndexedTableAccess(customer)\n" +
-			"                         │   │   │   │   │   │       ├─ index: [customer.C_CUSTKEY]\n" +
-			"                         │   │   │   │   │   │       ├─ columns: [c_custkey c_nationkey]\n" +
-			"                         │   │   │   │   │   │       └─ keys: orders.o_custkey\n" +
-			"                         │   │   │   │   │   └─ TableAlias(n1)\n" +
-			"                         │   │   │   │   │       └─ IndexedTableAccess(nation)\n" +
-			"                         │   │   │   │   │           ├─ index: [nation.N_NATIONKEY]\n" +
-			"                         │   │   │   │   │           ├─ columns: [n_nationkey n_regionkey]\n" +
-			"                         │   │   │   │   │           └─ keys: customer.c_nationkey\n" +
-			"                         │   │   │   │   └─ Filter\n" +
-			"                         │   │   │   │       ├─ (region.r_name = 'AMERICA')\n" +
-			"                         │   │   │   │       └─ IndexedTableAccess(region)\n" +
-			"                         │   │   │   │           ├─ index: [region.R_REGIONKEY]\n" +
-			"                         │   │   │   │           ├─ columns: [r_regionkey r_name]\n" +
-			"                         │   │   │   │           └─ keys: n1.n_regionkey\n" +
-			"                         │   │   │   └─ IndexedTableAccess(lineitem)\n" +
-			"                         │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         │   │   │       ├─ columns: [l_orderkey l_partkey l_suppkey l_extendedprice l_discount]\n" +
-			"                         │   │   │       └─ keys: orders.o_orderkey\n" +
-			"                         │   │   └─ IndexedTableAccess(supplier)\n" +
-			"                         │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                         │   │       ├─ columns: [s_suppkey s_nationkey]\n" +
-			"                         │   │       └─ keys: lineitem.l_suppkey\n" +
-			"                         │   └─ Filter\n" +
-			"                         │       ├─ (part.p_type = 'ECONOMY ANODIZED STEEL')\n" +
-			"                         │       └─ IndexedTableAccess(part)\n" +
-			"                         │           ├─ index: [part.P_PARTKEY]\n" +
-			"                         │           ├─ columns: [p_partkey p_type]\n" +
-			"                         │           └─ keys: lineitem.l_partkey\n" +
-			"                         └─ TableAlias(n2)\n" +
-			"                             └─ IndexedTableAccess(nation)\n" +
-			"                                 ├─ index: [nation.N_NATIONKEY]\n" +
-			"                                 ├─ columns: [n_nationkey n_name]\n" +
-			"                                 └─ keys: supplier.s_nationkey\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(SUM(CASE  WHEN (all_nations.nation = 'BRAZIL') THEN all_nations.volume ELSE 0 END), SUM(all_nations.volume), all_nations.o_year)\n" +
+			"         ├─ Grouping(all_nations.o_year)\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: all_nations\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [extract('YEAR' from orders.o_orderdate) as o_year, (lineitem.l_extendedprice * (1 - lineitem.l_discount)) as volume, n2.n_name as nation]\n" +
+			"                 └─ LookupJoin\n" +
+			"                     ├─ LookupJoin\n" +
+			"                     │   ├─ LookupJoin\n" +
+			"                     │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   │   │   ├─ Filter\n" +
+			"                     │   │   │   │   │   │   │   ├─ ((orders.o_orderdate >= '1995-01-01') AND (orders.o_orderdate <= '1996-12-31'))\n" +
+			"                     │   │   │   │   │   │   │   └─ Table\n" +
+			"                     │   │   │   │   │   │   │       ├─ name: orders\n" +
+			"                     │   │   │   │   │   │   │       └─ columns: [o_orderkey o_custkey o_orderdate]\n" +
+			"                     │   │   │   │   │   │   └─ IndexedTableAccess(customer)\n" +
+			"                     │   │   │   │   │   │       ├─ index: [customer.C_CUSTKEY]\n" +
+			"                     │   │   │   │   │   │       ├─ columns: [c_custkey c_nationkey]\n" +
+			"                     │   │   │   │   │   │       └─ keys: orders.o_custkey\n" +
+			"                     │   │   │   │   │   └─ TableAlias(n1)\n" +
+			"                     │   │   │   │   │       └─ IndexedTableAccess(nation)\n" +
+			"                     │   │   │   │   │           ├─ index: [nation.N_NATIONKEY]\n" +
+			"                     │   │   │   │   │           ├─ columns: [n_nationkey n_regionkey]\n" +
+			"                     │   │   │   │   │           └─ keys: customer.c_nationkey\n" +
+			"                     │   │   │   │   └─ Filter\n" +
+			"                     │   │   │   │       ├─ (region.r_name = 'AMERICA')\n" +
+			"                     │   │   │   │       └─ IndexedTableAccess(region)\n" +
+			"                     │   │   │   │           ├─ index: [region.R_REGIONKEY]\n" +
+			"                     │   │   │   │           ├─ columns: [r_regionkey r_name]\n" +
+			"                     │   │   │   │           └─ keys: n1.n_regionkey\n" +
+			"                     │   │   │   └─ IndexedTableAccess(lineitem)\n" +
+			"                     │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     │   │   │       ├─ columns: [l_orderkey l_partkey l_suppkey l_extendedprice l_discount]\n" +
+			"                     │   │   │       └─ keys: orders.o_orderkey\n" +
+			"                     │   │   └─ IndexedTableAccess(supplier)\n" +
+			"                     │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                     │   │       ├─ columns: [s_suppkey s_nationkey]\n" +
+			"                     │   │       └─ keys: lineitem.l_suppkey\n" +
+			"                     │   └─ Filter\n" +
+			"                     │       ├─ (part.p_type = 'ECONOMY ANODIZED STEEL')\n" +
+			"                     │       └─ IndexedTableAccess(part)\n" +
+			"                     │           ├─ index: [part.P_PARTKEY]\n" +
+			"                     │           ├─ columns: [p_partkey p_type]\n" +
+			"                     │           └─ keys: lineitem.l_partkey\n" +
+			"                     └─ TableAlias(n2)\n" +
+			"                         └─ IndexedTableAccess(nation)\n" +
+			"                             ├─ index: [nation.N_NATIONKEY]\n" +
+			"                             ├─ columns: [n_nationkey n_name]\n" +
+			"                             └─ keys: supplier.s_nationkey\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [all_nations.o_year, (sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end) / sum(all_nations.volume)) as mkt_share]\n" +
 			" └─ Sort(all_nations.o_year ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end), sum(all_nations.volume), all_nations.o_year, (sum(case  when (all_nations.nation = 'brazil') then all_nations.volume else 0 end) / sum(all_nations.volume)) as mkt_share]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(SUM(CASE  WHEN (all_nations.nation = 'BRAZIL') THEN all_nations.volume ELSE 0 END), SUM(all_nations.volume), all_nations.o_year)\n" +
-			"             ├─ Grouping(all_nations.o_year)\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: all_nations\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [extract('YEAR' from orders.o_orderdate) as o_year, (lineitem.l_extendedprice * (1 - lineitem.l_discount)) as volume, n2.n_name as nation]\n" +
-			"                     └─ LookupJoin\n" +
-			"                         ├─ LookupJoin\n" +
-			"                         │   ├─ LookupJoin\n" +
-			"                         │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   │   ├─ LookupJoin\n" +
-			"                         │   │   │   │   │   │   ├─ Filter\n" +
-			"                         │   │   │   │   │   │   │   ├─ ((orders.o_orderdate >= '1995-01-01') AND (orders.o_orderdate <= '1996-12-31'))\n" +
-			"                         │   │   │   │   │   │   │   └─ Table\n" +
-			"                         │   │   │   │   │   │   │       ├─ name: orders\n" +
-			"                         │   │   │   │   │   │   │       └─ columns: [o_orderkey o_custkey o_orderdate]\n" +
-			"                         │   │   │   │   │   │   └─ IndexedTableAccess(customer)\n" +
-			"                         │   │   │   │   │   │       ├─ index: [customer.C_CUSTKEY]\n" +
-			"                         │   │   │   │   │   │       ├─ columns: [c_custkey c_nationkey]\n" +
-			"                         │   │   │   │   │   │       └─ keys: orders.o_custkey\n" +
-			"                         │   │   │   │   │   └─ TableAlias(n1)\n" +
-			"                         │   │   │   │   │       └─ IndexedTableAccess(nation)\n" +
-			"                         │   │   │   │   │           ├─ index: [nation.N_NATIONKEY]\n" +
-			"                         │   │   │   │   │           ├─ columns: [n_nationkey n_regionkey]\n" +
-			"                         │   │   │   │   │           └─ keys: customer.c_nationkey\n" +
-			"                         │   │   │   │   └─ Filter\n" +
-			"                         │   │   │   │       ├─ (region.r_name = 'AMERICA')\n" +
-			"                         │   │   │   │       └─ IndexedTableAccess(region)\n" +
-			"                         │   │   │   │           ├─ index: [region.R_REGIONKEY]\n" +
-			"                         │   │   │   │           ├─ columns: [r_regionkey r_name]\n" +
-			"                         │   │   │   │           └─ keys: n1.n_regionkey\n" +
-			"                         │   │   │   └─ IndexedTableAccess(lineitem)\n" +
-			"                         │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         │   │   │       ├─ columns: [l_orderkey l_partkey l_suppkey l_extendedprice l_discount]\n" +
-			"                         │   │   │       └─ keys: orders.o_orderkey\n" +
-			"                         │   │   └─ IndexedTableAccess(supplier)\n" +
-			"                         │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                         │   │       ├─ columns: [s_suppkey s_nationkey]\n" +
-			"                         │   │       └─ keys: lineitem.l_suppkey\n" +
-			"                         │   └─ Filter\n" +
-			"                         │       ├─ (part.p_type = 'ECONOMY ANODIZED STEEL')\n" +
-			"                         │       └─ IndexedTableAccess(part)\n" +
-			"                         │           ├─ index: [part.P_PARTKEY]\n" +
-			"                         │           ├─ columns: [p_partkey p_type]\n" +
-			"                         │           └─ keys: lineitem.l_partkey\n" +
-			"                         └─ TableAlias(n2)\n" +
-			"                             └─ IndexedTableAccess(nation)\n" +
-			"                                 ├─ index: [nation.N_NATIONKEY]\n" +
-			"                                 ├─ columns: [n_nationkey n_name]\n" +
-			"                                 └─ keys: supplier.s_nationkey\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(SUM(CASE  WHEN (all_nations.nation = 'BRAZIL') THEN all_nations.volume ELSE 0 END), SUM(all_nations.volume), all_nations.o_year)\n" +
+			"         ├─ Grouping(all_nations.o_year)\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: all_nations\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [extract('YEAR' from orders.o_orderdate) as o_year, (lineitem.l_extendedprice * (1 - lineitem.l_discount)) as volume, n2.n_name as nation]\n" +
+			"                 └─ LookupJoin\n" +
+			"                     ├─ LookupJoin\n" +
+			"                     │   ├─ LookupJoin\n" +
+			"                     │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   │   ├─ LookupJoin\n" +
+			"                     │   │   │   │   │   │   ├─ Filter\n" +
+			"                     │   │   │   │   │   │   │   ├─ ((orders.o_orderdate >= '1995-01-01') AND (orders.o_orderdate <= '1996-12-31'))\n" +
+			"                     │   │   │   │   │   │   │   └─ Table\n" +
+			"                     │   │   │   │   │   │   │       ├─ name: orders\n" +
+			"                     │   │   │   │   │   │   │       └─ columns: [o_orderkey o_custkey o_orderdate]\n" +
+			"                     │   │   │   │   │   │   └─ IndexedTableAccess(customer)\n" +
+			"                     │   │   │   │   │   │       ├─ index: [customer.C_CUSTKEY]\n" +
+			"                     │   │   │   │   │   │       ├─ columns: [c_custkey c_nationkey]\n" +
+			"                     │   │   │   │   │   │       └─ keys: orders.o_custkey\n" +
+			"                     │   │   │   │   │   └─ TableAlias(n1)\n" +
+			"                     │   │   │   │   │       └─ IndexedTableAccess(nation)\n" +
+			"                     │   │   │   │   │           ├─ index: [nation.N_NATIONKEY]\n" +
+			"                     │   │   │   │   │           ├─ columns: [n_nationkey n_regionkey]\n" +
+			"                     │   │   │   │   │           └─ keys: customer.c_nationkey\n" +
+			"                     │   │   │   │   └─ Filter\n" +
+			"                     │   │   │   │       ├─ (region.r_name = 'AMERICA')\n" +
+			"                     │   │   │   │       └─ IndexedTableAccess(region)\n" +
+			"                     │   │   │   │           ├─ index: [region.R_REGIONKEY]\n" +
+			"                     │   │   │   │           ├─ columns: [r_regionkey r_name]\n" +
+			"                     │   │   │   │           └─ keys: n1.n_regionkey\n" +
+			"                     │   │   │   └─ IndexedTableAccess(lineitem)\n" +
+			"                     │   │   │       ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     │   │   │       ├─ columns: [l_orderkey l_partkey l_suppkey l_extendedprice l_discount]\n" +
+			"                     │   │   │       └─ keys: orders.o_orderkey\n" +
+			"                     │   │   └─ IndexedTableAccess(supplier)\n" +
+			"                     │   │       ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                     │   │       ├─ columns: [s_suppkey s_nationkey]\n" +
+			"                     │   │       └─ keys: lineitem.l_suppkey\n" +
+			"                     │   └─ Filter\n" +
+			"                     │       ├─ (part.p_type = 'ECONOMY ANODIZED STEEL')\n" +
+			"                     │       └─ IndexedTableAccess(part)\n" +
+			"                     │           ├─ index: [part.P_PARTKEY]\n" +
+			"                     │           ├─ columns: [p_partkey p_type]\n" +
+			"                     │           └─ keys: lineitem.l_partkey\n" +
+			"                     └─ TableAlias(n2)\n" +
+			"                         └─ IndexedTableAccess(nation)\n" +
+			"                             ├─ index: [nation.N_NATIONKEY]\n" +
+			"                             ├─ columns: [n_nationkey n_name]\n" +
+			"                             └─ keys: supplier.s_nationkey\n" +
 			"",
 	},
 	{
@@ -1431,207 +1407,201 @@ order by
 	nation,
 	o_year desc;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [profit.nation:1!null, profit.o_year:2!null, sum(profit.amount):0!null as sum_profit]\n" +
+			" ├─ columns: [profit.nation:1!null, profit.o_year:2!null, sum(profit.amount):0!null->sum_profit:0]\n" +
 			" └─ Sort(profit.nation:1!null ASC nullsFirst, profit.o_year:2!null DESC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(profit.amount):0!null, profit.nation:1!null, profit.o_year:2!null, sum(profit.amount):0!null as sum_profit]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ select: SUM(profit.amount:2!null), profit.nation:0!null, profit.o_year:1!null\n" +
-			"             ├─ group: profit.nation:0!null, profit.o_year:1!null\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: profit\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 ├─ colSet: (54-56)\n" +
-			"                 ├─ tableId: 7\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [nation.n_name:16!null as nation, extract('YEAR' from orders.o_orderdate) as o_year, ((lineitem.l_extendedprice:9!null * (1 (tinyint) - lineitem.l_discount:10!null)) - (partsupp.ps_supplycost:4!null * lineitem.l_quantity:8!null)) as amount]\n" +
-			"                     └─ LookupJoin\n" +
-			"                         ├─ HashJoin\n" +
-			"                         │   ├─ AND\n" +
-			"                         │   │   ├─ AND\n" +
-			"                         │   │   │   ├─ AND\n" +
-			"                         │   │   │   │   ├─ Eq\n" +
-			"                         │   │   │   │   │   ├─ part.p_partkey:0!null\n" +
-			"                         │   │   │   │   │   └─ lineitem.l_partkey:6!null\n" +
-			"                         │   │   │   │   └─ Eq\n" +
-			"                         │   │   │   │       ├─ partsupp.ps_suppkey:3!null\n" +
-			"                         │   │   │   │       └─ lineitem.l_suppkey:7!null\n" +
-			"                         │   │   │   └─ Eq\n" +
-			"                         │   │   │       ├─ partsupp.ps_partkey:2!null\n" +
-			"                         │   │   │       └─ lineitem.l_partkey:6!null\n" +
-			"                         │   │   └─ Eq\n" +
-			"                         │   │       ├─ supplier.s_suppkey:13!null\n" +
-			"                         │   │       └─ partsupp.ps_suppkey:3!null\n" +
-			"                         │   ├─ MergeJoin\n" +
-			"                         │   │   ├─ cmp: Eq\n" +
-			"                         │   │   │   ├─ part.p_partkey:0!null\n" +
-			"                         │   │   │   └─ partsupp.ps_partkey:2!null\n" +
-			"                         │   │   ├─ Filter\n" +
-			"                         │   │   │   ├─ part.p_name LIKE '%green%'\n" +
-			"                         │   │   │   └─ IndexedTableAccess(part)\n" +
-			"                         │   │   │       ├─ index: [part.P_PARTKEY]\n" +
-			"                         │   │   │       ├─ static: [{[NULL, ∞)}]\n" +
-			"                         │   │   │       ├─ colSet: (1-9)\n" +
-			"                         │   │   │       ├─ tableId: 1\n" +
-			"                         │   │   │       └─ Table\n" +
-			"                         │   │   │           ├─ name: part\n" +
-			"                         │   │   │           └─ columns: [p_partkey p_name]\n" +
-			"                         │   │   └─ IndexedTableAccess(partsupp)\n" +
-			"                         │   │       ├─ index: [partsupp.PS_PARTKEY,partsupp.PS_SUPPKEY]\n" +
-			"                         │   │       ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         │   │       ├─ colSet: (33-37)\n" +
-			"                         │   │       ├─ tableId: 4\n" +
-			"                         │   │       └─ Table\n" +
-			"                         │   │           ├─ name: partsupp\n" +
-			"                         │   │           └─ columns: [ps_partkey ps_suppkey ps_supplycost]\n" +
-			"                         │   └─ HashLookup\n" +
-			"                         │       ├─ left-key: TUPLE(part.p_partkey:0!null, partsupp.ps_suppkey:3!null, partsupp.ps_partkey:2!null, partsupp.ps_suppkey:3!null)\n" +
-			"                         │       ├─ right-key: TUPLE(lineitem.l_partkey:1!null, lineitem.l_suppkey:2!null, lineitem.l_partkey:1!null, supplier.s_suppkey:8!null)\n" +
-			"                         │       └─ LookupJoin\n" +
-			"                         │           ├─ MergeJoin\n" +
-			"                         │           │   ├─ cmp: Eq\n" +
-			"                         │           │   │   ├─ lineitem.l_orderkey:5!null\n" +
-			"                         │           │   │   └─ orders.o_orderkey:11!null\n" +
-			"                         │           │   ├─ IndexedTableAccess(lineitem)\n" +
-			"                         │           │   │   ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         │           │   │   ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         │           │   │   ├─ colSet: (17-32)\n" +
-			"                         │           │   │   ├─ tableId: 3\n" +
-			"                         │           │   │   └─ Table\n" +
-			"                         │           │   │       ├─ name: lineitem\n" +
-			"                         │           │   │       └─ columns: [l_orderkey l_partkey l_suppkey l_quantity l_extendedprice l_discount]\n" +
-			"                         │           │   └─ IndexedTableAccess(orders)\n" +
-			"                         │           │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                         │           │       ├─ static: [{[NULL, ∞)}]\n" +
-			"                         │           │       ├─ colSet: (38-46)\n" +
-			"                         │           │       ├─ tableId: 5\n" +
-			"                         │           │       └─ Table\n" +
-			"                         │           │           ├─ name: orders\n" +
-			"                         │           │           └─ columns: [o_orderkey o_orderdate]\n" +
-			"                         │           └─ IndexedTableAccess(supplier)\n" +
-			"                         │               ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                         │               ├─ keys: [lineitem.l_suppkey:7!null]\n" +
-			"                         │               ├─ colSet: (10-16)\n" +
-			"                         │               ├─ tableId: 2\n" +
-			"                         │               └─ Table\n" +
-			"                         │                   ├─ name: supplier\n" +
-			"                         │                   └─ columns: [s_suppkey s_nationkey]\n" +
-			"                         └─ IndexedTableAccess(nation)\n" +
-			"                             ├─ index: [nation.N_NATIONKEY]\n" +
-			"                             ├─ keys: [supplier.s_nationkey:14!null]\n" +
-			"                             ├─ colSet: (47-50)\n" +
-			"                             ├─ tableId: 6\n" +
-			"                             └─ Table\n" +
-			"                                 ├─ name: nation\n" +
-			"                                 └─ columns: [n_nationkey n_name]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ select: SUM(profit.amount:2!null), profit.nation:0!null, profit.o_year:1!null\n" +
+			"         ├─ group: profit.nation:0!null, profit.o_year:1!null\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: profit\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             ├─ colSet: (54-56)\n" +
+			"             ├─ tableId: 7\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [nation.n_name:16!null->nation:0, extract('YEAR' from orders.o_orderdate)->o_year:0, ((lineitem.l_extendedprice:9!null * (1 (tinyint) - lineitem.l_discount:10!null)) - (partsupp.ps_supplycost:4!null * lineitem.l_quantity:8!null))->amount:0]\n" +
+			"                 └─ LookupJoin\n" +
+			"                     ├─ HashJoin\n" +
+			"                     │   ├─ AND\n" +
+			"                     │   │   ├─ AND\n" +
+			"                     │   │   │   ├─ AND\n" +
+			"                     │   │   │   │   ├─ Eq\n" +
+			"                     │   │   │   │   │   ├─ part.p_partkey:0!null\n" +
+			"                     │   │   │   │   │   └─ lineitem.l_partkey:6!null\n" +
+			"                     │   │   │   │   └─ Eq\n" +
+			"                     │   │   │   │       ├─ partsupp.ps_suppkey:3!null\n" +
+			"                     │   │   │   │       └─ lineitem.l_suppkey:7!null\n" +
+			"                     │   │   │   └─ Eq\n" +
+			"                     │   │   │       ├─ partsupp.ps_partkey:2!null\n" +
+			"                     │   │   │       └─ lineitem.l_partkey:6!null\n" +
+			"                     │   │   └─ Eq\n" +
+			"                     │   │       ├─ supplier.s_suppkey:13!null\n" +
+			"                     │   │       └─ partsupp.ps_suppkey:3!null\n" +
+			"                     │   ├─ MergeJoin\n" +
+			"                     │   │   ├─ cmp: Eq\n" +
+			"                     │   │   │   ├─ part.p_partkey:0!null\n" +
+			"                     │   │   │   └─ partsupp.ps_partkey:2!null\n" +
+			"                     │   │   ├─ Filter\n" +
+			"                     │   │   │   ├─ part.p_name LIKE '%green%'\n" +
+			"                     │   │   │   └─ IndexedTableAccess(part)\n" +
+			"                     │   │   │       ├─ index: [part.P_PARTKEY]\n" +
+			"                     │   │   │       ├─ static: [{[NULL, ∞)}]\n" +
+			"                     │   │   │       ├─ colSet: (1-9)\n" +
+			"                     │   │   │       ├─ tableId: 1\n" +
+			"                     │   │   │       └─ Table\n" +
+			"                     │   │   │           ├─ name: part\n" +
+			"                     │   │   │           └─ columns: [p_partkey p_name]\n" +
+			"                     │   │   └─ IndexedTableAccess(partsupp)\n" +
+			"                     │   │       ├─ index: [partsupp.PS_PARTKEY,partsupp.PS_SUPPKEY]\n" +
+			"                     │   │       ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     │   │       ├─ colSet: (33-37)\n" +
+			"                     │   │       ├─ tableId: 4\n" +
+			"                     │   │       └─ Table\n" +
+			"                     │   │           ├─ name: partsupp\n" +
+			"                     │   │           └─ columns: [ps_partkey ps_suppkey ps_supplycost]\n" +
+			"                     │   └─ HashLookup\n" +
+			"                     │       ├─ left-key: TUPLE(part.p_partkey:0!null, partsupp.ps_suppkey:3!null, partsupp.ps_partkey:2!null, partsupp.ps_suppkey:3!null)\n" +
+			"                     │       ├─ right-key: TUPLE(lineitem.l_partkey:1!null, lineitem.l_suppkey:2!null, lineitem.l_partkey:1!null, supplier.s_suppkey:8!null)\n" +
+			"                     │       └─ LookupJoin\n" +
+			"                     │           ├─ MergeJoin\n" +
+			"                     │           │   ├─ cmp: Eq\n" +
+			"                     │           │   │   ├─ lineitem.l_orderkey:5!null\n" +
+			"                     │           │   │   └─ orders.o_orderkey:11!null\n" +
+			"                     │           │   ├─ IndexedTableAccess(lineitem)\n" +
+			"                     │           │   │   ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     │           │   │   ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     │           │   │   ├─ colSet: (17-32)\n" +
+			"                     │           │   │   ├─ tableId: 3\n" +
+			"                     │           │   │   └─ Table\n" +
+			"                     │           │   │       ├─ name: lineitem\n" +
+			"                     │           │   │       └─ columns: [l_orderkey l_partkey l_suppkey l_quantity l_extendedprice l_discount]\n" +
+			"                     │           │   └─ IndexedTableAccess(orders)\n" +
+			"                     │           │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                     │           │       ├─ static: [{[NULL, ∞)}]\n" +
+			"                     │           │       ├─ colSet: (38-46)\n" +
+			"                     │           │       ├─ tableId: 5\n" +
+			"                     │           │       └─ Table\n" +
+			"                     │           │           ├─ name: orders\n" +
+			"                     │           │           └─ columns: [o_orderkey o_orderdate]\n" +
+			"                     │           └─ IndexedTableAccess(supplier)\n" +
+			"                     │               ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                     │               ├─ keys: [lineitem.l_suppkey:7!null]\n" +
+			"                     │               ├─ colSet: (10-16)\n" +
+			"                     │               ├─ tableId: 2\n" +
+			"                     │               └─ Table\n" +
+			"                     │                   ├─ name: supplier\n" +
+			"                     │                   └─ columns: [s_suppkey s_nationkey]\n" +
+			"                     └─ IndexedTableAccess(nation)\n" +
+			"                         ├─ index: [nation.N_NATIONKEY]\n" +
+			"                         ├─ keys: [supplier.s_nationkey:14!null]\n" +
+			"                         ├─ colSet: (47-50)\n" +
+			"                         ├─ tableId: 6\n" +
+			"                         └─ Table\n" +
+			"                             ├─ name: nation\n" +
+			"                             └─ columns: [n_nationkey n_name]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [profit.nation, profit.o_year, sum(profit.amount) as sum_profit]\n" +
 			" └─ Sort(profit.nation ASC, profit.o_year DESC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(profit.amount), profit.nation, profit.o_year, sum(profit.amount) as sum_profit]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(SUM(profit.amount), profit.nation, profit.o_year)\n" +
-			"             ├─ Grouping(profit.nation, profit.o_year)\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: profit\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [nation.n_name as nation, extract('YEAR' from orders.o_orderdate) as o_year, ((lineitem.l_extendedprice * (1 - lineitem.l_discount)) - (partsupp.ps_supplycost * lineitem.l_quantity)) as amount]\n" +
-			"                     └─ LookupJoin\n" +
-			"                         ├─ HashJoin\n" +
-			"                         │   ├─ ((((part.p_partkey = lineitem.l_partkey) AND (partsupp.ps_suppkey = lineitem.l_suppkey)) AND (partsupp.ps_partkey = lineitem.l_partkey)) AND (supplier.s_suppkey = partsupp.ps_suppkey))\n" +
-			"                         │   ├─ MergeJoin\n" +
-			"                         │   │   ├─ cmp: (part.p_partkey = partsupp.ps_partkey)\n" +
-			"                         │   │   ├─ Filter\n" +
-			"                         │   │   │   ├─ part.p_name LIKE '%green%'\n" +
-			"                         │   │   │   └─ IndexedTableAccess(part)\n" +
-			"                         │   │   │       ├─ index: [part.P_PARTKEY]\n" +
-			"                         │   │   │       ├─ filters: [{[NULL, ∞)}]\n" +
-			"                         │   │   │       └─ columns: [p_partkey p_name]\n" +
-			"                         │   │   └─ IndexedTableAccess(partsupp)\n" +
-			"                         │   │       ├─ index: [partsupp.PS_PARTKEY,partsupp.PS_SUPPKEY]\n" +
-			"                         │   │       ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         │   │       └─ columns: [ps_partkey ps_suppkey ps_supplycost]\n" +
-			"                         │   └─ HashLookup\n" +
-			"                         │       ├─ left-key: (part.p_partkey, partsupp.ps_suppkey, partsupp.ps_partkey, partsupp.ps_suppkey)\n" +
-			"                         │       ├─ right-key: (lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_partkey, supplier.s_suppkey)\n" +
-			"                         │       └─ LookupJoin\n" +
-			"                         │           ├─ MergeJoin\n" +
-			"                         │           │   ├─ cmp: (lineitem.l_orderkey = orders.o_orderkey)\n" +
-			"                         │           │   ├─ IndexedTableAccess(lineitem)\n" +
-			"                         │           │   │   ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         │           │   │   ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         │           │   │   └─ columns: [l_orderkey l_partkey l_suppkey l_quantity l_extendedprice l_discount]\n" +
-			"                         │           │   └─ IndexedTableAccess(orders)\n" +
-			"                         │           │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                         │           │       ├─ filters: [{[NULL, ∞)}]\n" +
-			"                         │           │       └─ columns: [o_orderkey o_orderdate]\n" +
-			"                         │           └─ IndexedTableAccess(supplier)\n" +
-			"                         │               ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                         │               ├─ columns: [s_suppkey s_nationkey]\n" +
-			"                         │               └─ keys: lineitem.l_suppkey\n" +
-			"                         └─ IndexedTableAccess(nation)\n" +
-			"                             ├─ index: [nation.N_NATIONKEY]\n" +
-			"                             ├─ columns: [n_nationkey n_name]\n" +
-			"                             └─ keys: supplier.s_nationkey\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(SUM(profit.amount), profit.nation, profit.o_year)\n" +
+			"         ├─ Grouping(profit.nation, profit.o_year)\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: profit\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [nation.n_name as nation, extract('YEAR' from orders.o_orderdate) as o_year, ((lineitem.l_extendedprice * (1 - lineitem.l_discount)) - (partsupp.ps_supplycost * lineitem.l_quantity)) as amount]\n" +
+			"                 └─ LookupJoin\n" +
+			"                     ├─ HashJoin\n" +
+			"                     │   ├─ ((((part.p_partkey = lineitem.l_partkey) AND (partsupp.ps_suppkey = lineitem.l_suppkey)) AND (partsupp.ps_partkey = lineitem.l_partkey)) AND (supplier.s_suppkey = partsupp.ps_suppkey))\n" +
+			"                     │   ├─ MergeJoin\n" +
+			"                     │   │   ├─ cmp: (part.p_partkey = partsupp.ps_partkey)\n" +
+			"                     │   │   ├─ Filter\n" +
+			"                     │   │   │   ├─ part.p_name LIKE '%green%'\n" +
+			"                     │   │   │   └─ IndexedTableAccess(part)\n" +
+			"                     │   │   │       ├─ index: [part.P_PARTKEY]\n" +
+			"                     │   │   │       ├─ filters: [{[NULL, ∞)}]\n" +
+			"                     │   │   │       └─ columns: [p_partkey p_name]\n" +
+			"                     │   │   └─ IndexedTableAccess(partsupp)\n" +
+			"                     │   │       ├─ index: [partsupp.PS_PARTKEY,partsupp.PS_SUPPKEY]\n" +
+			"                     │   │       ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     │   │       └─ columns: [ps_partkey ps_suppkey ps_supplycost]\n" +
+			"                     │   └─ HashLookup\n" +
+			"                     │       ├─ left-key: (part.p_partkey, partsupp.ps_suppkey, partsupp.ps_partkey, partsupp.ps_suppkey)\n" +
+			"                     │       ├─ right-key: (lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_partkey, supplier.s_suppkey)\n" +
+			"                     │       └─ LookupJoin\n" +
+			"                     │           ├─ MergeJoin\n" +
+			"                     │           │   ├─ cmp: (lineitem.l_orderkey = orders.o_orderkey)\n" +
+			"                     │           │   ├─ IndexedTableAccess(lineitem)\n" +
+			"                     │           │   │   ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     │           │   │   ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     │           │   │   └─ columns: [l_orderkey l_partkey l_suppkey l_quantity l_extendedprice l_discount]\n" +
+			"                     │           │   └─ IndexedTableAccess(orders)\n" +
+			"                     │           │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                     │           │       ├─ filters: [{[NULL, ∞)}]\n" +
+			"                     │           │       └─ columns: [o_orderkey o_orderdate]\n" +
+			"                     │           └─ IndexedTableAccess(supplier)\n" +
+			"                     │               ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                     │               ├─ columns: [s_suppkey s_nationkey]\n" +
+			"                     │               └─ keys: lineitem.l_suppkey\n" +
+			"                     └─ IndexedTableAccess(nation)\n" +
+			"                         ├─ index: [nation.N_NATIONKEY]\n" +
+			"                         ├─ columns: [n_nationkey n_name]\n" +
+			"                         └─ keys: supplier.s_nationkey\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [profit.nation, profit.o_year, sum(profit.amount) as sum_profit]\n" +
 			" └─ Sort(profit.nation ASC, profit.o_year DESC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(profit.amount), profit.nation, profit.o_year, sum(profit.amount) as sum_profit]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(SUM(profit.amount), profit.nation, profit.o_year)\n" +
-			"             ├─ Grouping(profit.nation, profit.o_year)\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: profit\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [nation.n_name as nation, extract('YEAR' from orders.o_orderdate) as o_year, ((lineitem.l_extendedprice * (1 - lineitem.l_discount)) - (partsupp.ps_supplycost * lineitem.l_quantity)) as amount]\n" +
-			"                     └─ LookupJoin\n" +
-			"                         ├─ HashJoin\n" +
-			"                         │   ├─ ((((part.p_partkey = lineitem.l_partkey) AND (partsupp.ps_suppkey = lineitem.l_suppkey)) AND (partsupp.ps_partkey = lineitem.l_partkey)) AND (supplier.s_suppkey = partsupp.ps_suppkey))\n" +
-			"                         │   ├─ MergeJoin\n" +
-			"                         │   │   ├─ cmp: (part.p_partkey = partsupp.ps_partkey)\n" +
-			"                         │   │   ├─ Filter\n" +
-			"                         │   │   │   ├─ part.p_name LIKE '%green%'\n" +
-			"                         │   │   │   └─ IndexedTableAccess(part)\n" +
-			"                         │   │   │       ├─ index: [part.P_PARTKEY]\n" +
-			"                         │   │   │       ├─ filters: [{[NULL, ∞)}]\n" +
-			"                         │   │   │       └─ columns: [p_partkey p_name]\n" +
-			"                         │   │   └─ IndexedTableAccess(partsupp)\n" +
-			"                         │   │       ├─ index: [partsupp.PS_PARTKEY,partsupp.PS_SUPPKEY]\n" +
-			"                         │   │       ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         │   │       └─ columns: [ps_partkey ps_suppkey ps_supplycost]\n" +
-			"                         │   └─ HashLookup\n" +
-			"                         │       ├─ left-key: (part.p_partkey, partsupp.ps_suppkey, partsupp.ps_partkey, partsupp.ps_suppkey)\n" +
-			"                         │       ├─ right-key: (lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_partkey, supplier.s_suppkey)\n" +
-			"                         │       └─ LookupJoin\n" +
-			"                         │           ├─ MergeJoin\n" +
-			"                         │           │   ├─ cmp: (lineitem.l_orderkey = orders.o_orderkey)\n" +
-			"                         │           │   ├─ IndexedTableAccess(lineitem)\n" +
-			"                         │           │   │   ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         │           │   │   ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         │           │   │   └─ columns: [l_orderkey l_partkey l_suppkey l_quantity l_extendedprice l_discount]\n" +
-			"                         │           │   └─ IndexedTableAccess(orders)\n" +
-			"                         │           │       ├─ index: [orders.O_ORDERKEY]\n" +
-			"                         │           │       ├─ filters: [{[NULL, ∞)}]\n" +
-			"                         │           │       └─ columns: [o_orderkey o_orderdate]\n" +
-			"                         │           └─ IndexedTableAccess(supplier)\n" +
-			"                         │               ├─ index: [supplier.S_SUPPKEY]\n" +
-			"                         │               ├─ columns: [s_suppkey s_nationkey]\n" +
-			"                         │               └─ keys: lineitem.l_suppkey\n" +
-			"                         └─ IndexedTableAccess(nation)\n" +
-			"                             ├─ index: [nation.N_NATIONKEY]\n" +
-			"                             ├─ columns: [n_nationkey n_name]\n" +
-			"                             └─ keys: supplier.s_nationkey\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(SUM(profit.amount), profit.nation, profit.o_year)\n" +
+			"         ├─ Grouping(profit.nation, profit.o_year)\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: profit\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [nation.n_name as nation, extract('YEAR' from orders.o_orderdate) as o_year, ((lineitem.l_extendedprice * (1 - lineitem.l_discount)) - (partsupp.ps_supplycost * lineitem.l_quantity)) as amount]\n" +
+			"                 └─ LookupJoin\n" +
+			"                     ├─ HashJoin\n" +
+			"                     │   ├─ ((((part.p_partkey = lineitem.l_partkey) AND (partsupp.ps_suppkey = lineitem.l_suppkey)) AND (partsupp.ps_partkey = lineitem.l_partkey)) AND (supplier.s_suppkey = partsupp.ps_suppkey))\n" +
+			"                     │   ├─ MergeJoin\n" +
+			"                     │   │   ├─ cmp: (part.p_partkey = partsupp.ps_partkey)\n" +
+			"                     │   │   ├─ Filter\n" +
+			"                     │   │   │   ├─ part.p_name LIKE '%green%'\n" +
+			"                     │   │   │   └─ IndexedTableAccess(part)\n" +
+			"                     │   │   │       ├─ index: [part.P_PARTKEY]\n" +
+			"                     │   │   │       ├─ filters: [{[NULL, ∞)}]\n" +
+			"                     │   │   │       └─ columns: [p_partkey p_name]\n" +
+			"                     │   │   └─ IndexedTableAccess(partsupp)\n" +
+			"                     │   │       ├─ index: [partsupp.PS_PARTKEY,partsupp.PS_SUPPKEY]\n" +
+			"                     │   │       ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     │   │       └─ columns: [ps_partkey ps_suppkey ps_supplycost]\n" +
+			"                     │   └─ HashLookup\n" +
+			"                     │       ├─ left-key: (part.p_partkey, partsupp.ps_suppkey, partsupp.ps_partkey, partsupp.ps_suppkey)\n" +
+			"                     │       ├─ right-key: (lineitem.l_partkey, lineitem.l_suppkey, lineitem.l_partkey, supplier.s_suppkey)\n" +
+			"                     │       └─ LookupJoin\n" +
+			"                     │           ├─ MergeJoin\n" +
+			"                     │           │   ├─ cmp: (lineitem.l_orderkey = orders.o_orderkey)\n" +
+			"                     │           │   ├─ IndexedTableAccess(lineitem)\n" +
+			"                     │           │   │   ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     │           │   │   ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     │           │   │   └─ columns: [l_orderkey l_partkey l_suppkey l_quantity l_extendedprice l_discount]\n" +
+			"                     │           │   └─ IndexedTableAccess(orders)\n" +
+			"                     │           │       ├─ index: [orders.O_ORDERKEY]\n" +
+			"                     │           │       ├─ filters: [{[NULL, ∞)}]\n" +
+			"                     │           │       └─ columns: [o_orderkey o_orderdate]\n" +
+			"                     │           └─ IndexedTableAccess(supplier)\n" +
+			"                     │               ├─ index: [supplier.S_SUPPKEY]\n" +
+			"                     │               ├─ columns: [s_suppkey s_nationkey]\n" +
+			"                     │               └─ keys: lineitem.l_suppkey\n" +
+			"                     └─ IndexedTableAccess(nation)\n" +
+			"                         ├─ index: [nation.N_NATIONKEY]\n" +
+			"                         ├─ columns: [n_nationkey n_name]\n" +
+			"                         └─ keys: supplier.s_nationkey\n" +
 			"",
 	},
 	{
@@ -1669,10 +1639,10 @@ group by
 order by
 	revenue desc;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [customer.c_custkey:1!null, customer.c_name:2!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue, customer.c_acctbal:3!null, nation.n_name:4!null, customer.c_address:5!null, customer.c_phone:6!null, customer.c_comment:7!null]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue DESC nullsFirst)\n" +
+			" ├─ columns: [customer.c_custkey:1!null, customer.c_name:2!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null->revenue:0, customer.c_acctbal:3!null, nation.n_name:4!null, customer.c_address:5!null, customer.c_phone:6!null, customer.c_comment:7!null]\n" +
+			" └─ Sort(revenue:8!null DESC nullsFirst)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null, customer.c_custkey:1!null, customer.c_name:2!null, customer.c_acctbal:3!null, nation.n_name:4!null, customer.c_address:5!null, customer.c_phone:6!null, customer.c_comment:7!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue]\n" +
+			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null, customer.c_custkey:1!null, customer.c_name:2!null, customer.c_acctbal:3!null, nation.n_name:4!null, customer.c_address:5!null, customer.c_phone:6!null, customer.c_comment:7!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null->revenue:0]\n" +
 			"         └─ GroupBy\n" +
 			"             ├─ select: SUM((lineitem.l_extendedprice:4!null * (1 (tinyint) - lineitem.l_discount:5!null))), customer.c_custkey:7!null, customer.c_name:8!null, customer.c_acctbal:12!null, nation.n_name:15!null, customer.c_address:9!null, customer.c_phone:11!null, customer.c_comment:13!null\n" +
 			"             ├─ group: customer.c_custkey:7!null, customer.c_name:8!null, customer.c_acctbal:12!null, customer.c_phone:11!null, nation.n_name:15!null, customer.c_address:9!null, customer.c_comment:13!null\n" +
@@ -1729,7 +1699,7 @@ order by
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [customer.c_custkey, customer.c_name, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue, customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue DESC)\n" +
+			" └─ Sort(revenue DESC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))), customer.c_custkey, customer.c_name, customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue]\n" +
 			"         └─ GroupBy\n" +
@@ -1762,7 +1732,7 @@ order by
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [customer.c_custkey, customer.c_name, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue, customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment]\n" +
-			" └─ Sort(sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue DESC)\n" +
+			" └─ Sort(revenue DESC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))), customer.c_custkey, customer.c_name, customer.c_acctbal, nation.n_name, customer.c_address, customer.c_phone, customer.c_comment, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))) as revenue]\n" +
 			"         └─ GroupBy\n" +
@@ -1825,8 +1795,8 @@ group by
 order by
 	value desc;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [partsupp.ps_partkey:1!null, sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null as value]\n" +
-			" └─ Sort(sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null as value DESC nullsFirst)\n" +
+			" ├─ columns: [partsupp.ps_partkey:1!null, sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null->value:0]\n" +
+			" └─ Sort(value:4!null DESC nullsFirst)\n" +
 			"     └─ Having\n" +
 			"         ├─ GreaterThan\n" +
 			"         │   ├─ sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null\n" +
@@ -1834,7 +1804,7 @@ order by
 			"         │       ├─ cacheable: true\n" +
 			"         │       ├─ alias-string: select sum(ps_supplycost * ps_availqty) * 0.0001000000 from partsupp, supplier, nation where ps_suppkey = s_suppkey and s_nationkey = n_nationkey and n_name = 'GERMANY'\n" +
 			"         │       └─ Project\n" +
-			"         │           ├─ columns: [(sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null * 0.0001 (decimal(11,10))) as sum(ps_supplycost * ps_availqty) * 0.0001000000]\n" +
+			"         │           ├─ columns: [(sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null * 0.0001 (decimal(11,10)))->sum(ps_supplycost * ps_availqty) * 0.0001000000:0]\n" +
 			"         │           └─ LookupJoin\n" +
 			"         │               ├─ LookupJoin\n" +
 			"         │               │   ├─ Table\n" +
@@ -1863,7 +1833,7 @@ order by
 			"         │                           ├─ name: nation\n" +
 			"         │                           └─ columns: [n_nationkey n_name]\n" +
 			"         └─ Project\n" +
-			"             ├─ columns: [sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null, partsupp.ps_partkey:1!null, partsupp.PS_SUPPLYCOST:2!null, partsupp.PS_AVAILQTY:3!null, sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null as value]\n" +
+			"             ├─ columns: [sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null, partsupp.ps_partkey:1!null, partsupp.PS_SUPPLYCOST:2!null, partsupp.PS_AVAILQTY:3!null, sum((partsupp.ps_supplycost * partsupp.ps_availqty)):0!null->value:0]\n" +
 			"             └─ GroupBy\n" +
 			"                 ├─ select: SUM((partsupp.ps_supplycost:3!null * partsupp.ps_availqty:2!null)), partsupp.ps_partkey:0!null, partsupp.PS_SUPPLYCOST:3!null, partsupp.PS_AVAILQTY:2!null\n" +
 			"                 ├─ group: partsupp.ps_partkey:0!null\n" +
@@ -1896,7 +1866,7 @@ order by
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [partsupp.ps_partkey, sum((partsupp.ps_supplycost * partsupp.ps_availqty)) as value]\n" +
-			" └─ Sort(sum((partsupp.ps_supplycost * partsupp.ps_availqty)) as value DESC)\n" +
+			" └─ Sort(value DESC)\n" +
 			"     └─ Having((sum((partsupp.ps_supplycost * partsupp.ps_availqty)) > Subquery\n" +
 			"         ├─ cacheable: true\n" +
 			"         └─ Project\n" +
@@ -1937,7 +1907,7 @@ order by
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [partsupp.ps_partkey, sum((partsupp.ps_supplycost * partsupp.ps_availqty)) as value]\n" +
-			" └─ Sort(sum((partsupp.ps_supplycost * partsupp.ps_availqty)) as value DESC)\n" +
+			" └─ Sort(value DESC)\n" +
 			"     └─ Having((sum((partsupp.ps_supplycost * partsupp.ps_availqty)) > Subquery\n" +
 			"         ├─ cacheable: true\n" +
 			"         └─ Project\n" +
@@ -2009,111 +1979,105 @@ group by
 order by
 	l_shipmode;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [lineitem.l_shipmode:2!null, sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end):1!null as high_line_count, sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end):0!null as low_line_count]\n" +
+			" ├─ columns: [lineitem.l_shipmode:2!null, sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end):1!null->high_line_count:0, sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end):0!null->low_line_count:0]\n" +
 			" └─ Sort(lineitem.l_shipmode:2!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end):0!null, sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end):1!null, lineitem.l_shipmode:2!null, sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end):1!null as high_line_count, sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end):0!null as low_line_count]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ select: SUM(CASE  WHEN AND\n" +
-			"             │   ├─ NOT\n" +
-			"             │   │   └─ Eq\n" +
-			"             │   │       ├─ orders.o_orderpriority:1!null\n" +
-			"             │   │       └─ 1-URGENT (longtext)\n" +
-			"             │   └─ NOT\n" +
-			"             │       └─ Eq\n" +
-			"             │           ├─ orders.o_orderpriority:1!null\n" +
-			"             │           └─ 2-HIGH (longtext)\n" +
-			"             │   THEN 1 (tinyint) ELSE 0 (tinyint) END), SUM(CASE  WHEN Or\n" +
-			"             │   ├─ Eq\n" +
-			"             │   │   ├─ orders.o_orderpriority:1!null\n" +
-			"             │   │   └─ 1-URGENT (longtext)\n" +
-			"             │   └─ Eq\n" +
-			"             │       ├─ orders.o_orderpriority:1!null\n" +
-			"             │       └─ 2-HIGH (longtext)\n" +
-			"             │   THEN 1 (tinyint) ELSE 0 (tinyint) END), lineitem.l_shipmode:6!null\n" +
-			"             ├─ group: lineitem.l_shipmode:6!null\n" +
-			"             └─ MergeJoin\n" +
-			"                 ├─ cmp: Eq\n" +
-			"                 │   ├─ orders.o_orderkey:0!null\n" +
-			"                 │   └─ lineitem.l_orderkey:2!null\n" +
-			"                 ├─ IndexedTableAccess(orders)\n" +
-			"                 │   ├─ index: [orders.O_ORDERKEY]\n" +
-			"                 │   ├─ static: [{[NULL, ∞)}]\n" +
-			"                 │   ├─ colSet: (1-9)\n" +
-			"                 │   ├─ tableId: 1\n" +
-			"                 │   └─ Table\n" +
-			"                 │       ├─ name: orders\n" +
-			"                 │       └─ columns: [o_orderkey o_orderpriority]\n" +
-			"                 └─ Filter\n" +
-			"                     ├─ AND\n" +
-			"                     │   ├─ AND\n" +
-			"                     │   │   ├─ AND\n" +
-			"                     │   │   │   ├─ AND\n" +
-			"                     │   │   │   │   ├─ HashIn\n" +
-			"                     │   │   │   │   │   ├─ lineitem.l_shipmode:4!null\n" +
-			"                     │   │   │   │   │   └─ TUPLE(MAIL (longtext), SHIP (longtext))\n" +
-			"                     │   │   │   │   └─ LessThan\n" +
-			"                     │   │   │   │       ├─ lineitem.l_commitdate:2!null\n" +
-			"                     │   │   │   │       └─ lineitem.l_receiptdate:3!null\n" +
-			"                     │   │   │   └─ LessThan\n" +
-			"                     │   │   │       ├─ lineitem.l_shipdate:1!null\n" +
-			"                     │   │   │       └─ lineitem.l_commitdate:2!null\n" +
-			"                     │   │   └─ GreaterThanOrEqual\n" +
-			"                     │   │       ├─ lineitem.l_receiptdate:3!null\n" +
-			"                     │   │       └─ 1994-01-01 (longtext)\n" +
-			"                     │   └─ LessThan\n" +
-			"                     │       ├─ lineitem.l_receiptdate:3!null\n" +
-			"                     │       └─ 1995-01-01 00:00:00 +0000 UTC (datetime)\n" +
-			"                     └─ IndexedTableAccess(lineitem)\n" +
-			"                         ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         ├─ colSet: (10-25)\n" +
-			"                         ├─ tableId: 2\n" +
-			"                         └─ Table\n" +
-			"                             ├─ name: lineitem\n" +
-			"                             └─ columns: [l_orderkey l_shipdate l_commitdate l_receiptdate l_shipmode]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ select: SUM(CASE  WHEN AND\n" +
+			"         │   ├─ NOT\n" +
+			"         │   │   └─ Eq\n" +
+			"         │   │       ├─ orders.o_orderpriority:1!null\n" +
+			"         │   │       └─ 1-URGENT (longtext)\n" +
+			"         │   └─ NOT\n" +
+			"         │       └─ Eq\n" +
+			"         │           ├─ orders.o_orderpriority:1!null\n" +
+			"         │           └─ 2-HIGH (longtext)\n" +
+			"         │   THEN 1 (tinyint) ELSE 0 (tinyint) END), SUM(CASE  WHEN Or\n" +
+			"         │   ├─ Eq\n" +
+			"         │   │   ├─ orders.o_orderpriority:1!null\n" +
+			"         │   │   └─ 1-URGENT (longtext)\n" +
+			"         │   └─ Eq\n" +
+			"         │       ├─ orders.o_orderpriority:1!null\n" +
+			"         │       └─ 2-HIGH (longtext)\n" +
+			"         │   THEN 1 (tinyint) ELSE 0 (tinyint) END), lineitem.l_shipmode:6!null\n" +
+			"         ├─ group: lineitem.l_shipmode:6!null\n" +
+			"         └─ MergeJoin\n" +
+			"             ├─ cmp: Eq\n" +
+			"             │   ├─ orders.o_orderkey:0!null\n" +
+			"             │   └─ lineitem.l_orderkey:2!null\n" +
+			"             ├─ IndexedTableAccess(orders)\n" +
+			"             │   ├─ index: [orders.O_ORDERKEY]\n" +
+			"             │   ├─ static: [{[NULL, ∞)}]\n" +
+			"             │   ├─ colSet: (1-9)\n" +
+			"             │   ├─ tableId: 1\n" +
+			"             │   └─ Table\n" +
+			"             │       ├─ name: orders\n" +
+			"             │       └─ columns: [o_orderkey o_orderpriority]\n" +
+			"             └─ Filter\n" +
+			"                 ├─ AND\n" +
+			"                 │   ├─ AND\n" +
+			"                 │   │   ├─ AND\n" +
+			"                 │   │   │   ├─ AND\n" +
+			"                 │   │   │   │   ├─ HashIn\n" +
+			"                 │   │   │   │   │   ├─ lineitem.l_shipmode:4!null\n" +
+			"                 │   │   │   │   │   └─ TUPLE(MAIL (longtext), SHIP (longtext))\n" +
+			"                 │   │   │   │   └─ LessThan\n" +
+			"                 │   │   │   │       ├─ lineitem.l_commitdate:2!null\n" +
+			"                 │   │   │   │       └─ lineitem.l_receiptdate:3!null\n" +
+			"                 │   │   │   └─ LessThan\n" +
+			"                 │   │   │       ├─ lineitem.l_shipdate:1!null\n" +
+			"                 │   │   │       └─ lineitem.l_commitdate:2!null\n" +
+			"                 │   │   └─ GreaterThanOrEqual\n" +
+			"                 │   │       ├─ lineitem.l_receiptdate:3!null\n" +
+			"                 │   │       └─ 1994-01-01 (longtext)\n" +
+			"                 │   └─ LessThan\n" +
+			"                 │       ├─ lineitem.l_receiptdate:3!null\n" +
+			"                 │       └─ 1995-01-01 00:00:00 +0000 UTC (datetime)\n" +
+			"                 └─ IndexedTableAccess(lineitem)\n" +
+			"                     ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     ├─ colSet: (10-25)\n" +
+			"                     ├─ tableId: 2\n" +
+			"                     └─ Table\n" +
+			"                         ├─ name: lineitem\n" +
+			"                         └─ columns: [l_orderkey l_shipdate l_commitdate l_receiptdate l_shipmode]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [lineitem.l_shipmode, sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end) as high_line_count, sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end) as low_line_count]\n" +
 			" └─ Sort(lineitem.l_shipmode ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end), sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end), lineitem.l_shipmode, sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end) as high_line_count, sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end) as low_line_count]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(SUM(CASE  WHEN ((NOT((orders.o_orderpriority = '1-URGENT'))) AND (NOT((orders.o_orderpriority = '2-HIGH')))) THEN 1 ELSE 0 END), SUM(CASE  WHEN ((orders.o_orderpriority = '1-URGENT') OR (orders.o_orderpriority = '2-HIGH')) THEN 1 ELSE 0 END), lineitem.l_shipmode)\n" +
-			"             ├─ Grouping(lineitem.l_shipmode)\n" +
-			"             └─ MergeJoin\n" +
-			"                 ├─ cmp: (orders.o_orderkey = lineitem.l_orderkey)\n" +
-			"                 ├─ IndexedTableAccess(orders)\n" +
-			"                 │   ├─ index: [orders.O_ORDERKEY]\n" +
-			"                 │   ├─ filters: [{[NULL, ∞)}]\n" +
-			"                 │   └─ columns: [o_orderkey o_orderpriority]\n" +
-			"                 └─ Filter\n" +
-			"                     ├─ (((((lineitem.l_shipmode HASH IN ('MAIL', 'SHIP')) AND (lineitem.l_commitdate < lineitem.l_receiptdate)) AND (lineitem.l_shipdate < lineitem.l_commitdate)) AND (lineitem.l_receiptdate >= '1994-01-01')) AND (lineitem.l_receiptdate < 1995-01-01 00:00:00 +0000 UTC))\n" +
-			"                     └─ IndexedTableAccess(lineitem)\n" +
-			"                         ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         └─ columns: [l_orderkey l_shipdate l_commitdate l_receiptdate l_shipmode]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(SUM(CASE  WHEN ((NOT((orders.o_orderpriority = '1-URGENT'))) AND (NOT((orders.o_orderpriority = '2-HIGH')))) THEN 1 ELSE 0 END), SUM(CASE  WHEN ((orders.o_orderpriority = '1-URGENT') OR (orders.o_orderpriority = '2-HIGH')) THEN 1 ELSE 0 END), lineitem.l_shipmode)\n" +
+			"         ├─ Grouping(lineitem.l_shipmode)\n" +
+			"         └─ MergeJoin\n" +
+			"             ├─ cmp: (orders.o_orderkey = lineitem.l_orderkey)\n" +
+			"             ├─ IndexedTableAccess(orders)\n" +
+			"             │   ├─ index: [orders.O_ORDERKEY]\n" +
+			"             │   ├─ filters: [{[NULL, ∞)}]\n" +
+			"             │   └─ columns: [o_orderkey o_orderpriority]\n" +
+			"             └─ Filter\n" +
+			"                 ├─ (((((lineitem.l_shipmode HASH IN ('MAIL', 'SHIP')) AND (lineitem.l_commitdate < lineitem.l_receiptdate)) AND (lineitem.l_shipdate < lineitem.l_commitdate)) AND (lineitem.l_receiptdate >= '1994-01-01')) AND (lineitem.l_receiptdate < 1995-01-01 00:00:00 +0000 UTC))\n" +
+			"                 └─ IndexedTableAccess(lineitem)\n" +
+			"                     ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     └─ columns: [l_orderkey l_shipdate l_commitdate l_receiptdate l_shipmode]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [lineitem.l_shipmode, sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end) as high_line_count, sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end) as low_line_count]\n" +
 			" └─ Sort(lineitem.l_shipmode ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end), sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end), lineitem.l_shipmode, sum(case  when ((orders.o_orderpriority = '1-urgent') or (orders.o_orderpriority = '2-high')) then 1 else 0 end) as high_line_count, sum(case  when ((not((orders.o_orderpriority = '1-urgent'))) and (not((orders.o_orderpriority = '2-high')))) then 1 else 0 end) as low_line_count]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(SUM(CASE  WHEN ((NOT((orders.o_orderpriority = '1-URGENT'))) AND (NOT((orders.o_orderpriority = '2-HIGH')))) THEN 1 ELSE 0 END), SUM(CASE  WHEN ((orders.o_orderpriority = '1-URGENT') OR (orders.o_orderpriority = '2-HIGH')) THEN 1 ELSE 0 END), lineitem.l_shipmode)\n" +
-			"             ├─ Grouping(lineitem.l_shipmode)\n" +
-			"             └─ MergeJoin\n" +
-			"                 ├─ cmp: (orders.o_orderkey = lineitem.l_orderkey)\n" +
-			"                 ├─ IndexedTableAccess(orders)\n" +
-			"                 │   ├─ index: [orders.O_ORDERKEY]\n" +
-			"                 │   ├─ filters: [{[NULL, ∞)}]\n" +
-			"                 │   └─ columns: [o_orderkey o_orderpriority]\n" +
-			"                 └─ Filter\n" +
-			"                     ├─ (((((lineitem.l_shipmode HASH IN ('MAIL', 'SHIP')) AND (lineitem.l_commitdate < lineitem.l_receiptdate)) AND (lineitem.l_shipdate < lineitem.l_commitdate)) AND (lineitem.l_receiptdate >= '1994-01-01')) AND (lineitem.l_receiptdate < 1995-01-01 00:00:00 +0000 UTC))\n" +
-			"                     └─ IndexedTableAccess(lineitem)\n" +
-			"                         ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
-			"                         ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                         └─ columns: [l_orderkey l_shipdate l_commitdate l_receiptdate l_shipmode]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(SUM(CASE  WHEN ((NOT((orders.o_orderpriority = '1-URGENT'))) AND (NOT((orders.o_orderpriority = '2-HIGH')))) THEN 1 ELSE 0 END), SUM(CASE  WHEN ((orders.o_orderpriority = '1-URGENT') OR (orders.o_orderpriority = '2-HIGH')) THEN 1 ELSE 0 END), lineitem.l_shipmode)\n" +
+			"         ├─ Grouping(lineitem.l_shipmode)\n" +
+			"         └─ MergeJoin\n" +
+			"             ├─ cmp: (orders.o_orderkey = lineitem.l_orderkey)\n" +
+			"             ├─ IndexedTableAccess(orders)\n" +
+			"             │   ├─ index: [orders.O_ORDERKEY]\n" +
+			"             │   ├─ filters: [{[NULL, ∞)}]\n" +
+			"             │   └─ columns: [o_orderkey o_orderpriority]\n" +
+			"             └─ Filter\n" +
+			"                 ├─ (((((lineitem.l_shipmode HASH IN ('MAIL', 'SHIP')) AND (lineitem.l_commitdate < lineitem.l_receiptdate)) AND (lineitem.l_shipdate < lineitem.l_commitdate)) AND (lineitem.l_receiptdate >= '1994-01-01')) AND (lineitem.l_receiptdate < 1995-01-01 00:00:00 +0000 UTC))\n" +
+			"                 └─ IndexedTableAccess(lineitem)\n" +
+			"                     ├─ index: [lineitem.L_ORDERKEY,lineitem.L_LINENUMBER]\n" +
+			"                     ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"                     └─ columns: [l_orderkey l_shipdate l_commitdate l_receiptdate l_shipmode]\n" +
 			"",
 	},
 	{
@@ -2140,10 +2104,10 @@ order by
 	custdist desc,
 	c_count desc;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [c_orders.c_count:1!null, count(1):0!null as custdist]\n" +
-			" └─ Sort(count(1):0!null as custdist DESC nullsFirst, c_orders.c_count:1!null DESC nullsFirst)\n" +
+			" ├─ columns: [c_orders.c_count:1!null, count(1):0!null->custdist:0]\n" +
+			" └─ Sort(custdist:2!null DESC nullsFirst, c_orders.c_count:1!null DESC nullsFirst)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [count(1):0!null, c_orders.c_count:1!null, count(1):0!null as custdist]\n" +
+			"         ├─ columns: [count(1):0!null, c_orders.c_count:1!null, count(1):0!null->custdist:0]\n" +
 			"         └─ GroupBy\n" +
 			"             ├─ select: COUNT(1 (bigint)), c_orders.c_count:1!null\n" +
 			"             ├─ group: c_orders.c_count:1!null\n" +
@@ -2155,7 +2119,7 @@ order by
 			"                 ├─ colSet: (19,20)\n" +
 			"                 ├─ tableId: 3\n" +
 			"                 └─ Project\n" +
-			"                     ├─ columns: [customer.c_custkey:1!null, count(orders.o_orderkey):0!null as count(o_orderkey)]\n" +
+			"                     ├─ columns: [customer.c_custkey:1!null, count(orders.o_orderkey):0!null->count(o_orderkey):0]\n" +
 			"                     └─ GroupBy\n" +
 			"                         ├─ select: COUNT(orders.o_orderkey:1!null), customer.c_custkey:0!null\n" +
 			"                         ├─ group: customer.c_custkey:0!null\n" +
@@ -2179,7 +2143,7 @@ order by
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [c_orders.c_count, count(1) as custdist]\n" +
-			" └─ Sort(count(1) as custdist DESC, c_orders.c_count DESC)\n" +
+			" └─ Sort(custdist DESC, c_orders.c_count DESC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [count(1), c_orders.c_count, count(1) as custdist]\n" +
 			"         └─ GroupBy\n" +
@@ -2206,7 +2170,7 @@ order by
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [c_orders.c_count, count(1) as custdist]\n" +
-			" └─ Sort(count(1) as custdist DESC, c_orders.c_count DESC)\n" +
+			" └─ Sort(custdist DESC, c_orders.c_count DESC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [count(1), c_orders.c_count, count(1) as custdist]\n" +
 			"         └─ GroupBy\n" +
@@ -2249,7 +2213,7 @@ where
 	and l_shipdate >= '1995-09-01'
 	and l_shipdate < '1995-09-01' + interval '1' month;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [((100 (decimal(5,2)) * sum(case  when part.p_type like 'promo%' then (lineitem.l_extendedprice * (1 - lineitem.l_discount)) else 0 end):1!null) / sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null) as promo_revenue]\n" +
+			" ├─ columns: [((100 (decimal(5,2)) * sum(case  when part.p_type like 'promo%' then (lineitem.l_extendedprice * (1 - lineitem.l_discount)) else 0 end):1!null) / sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null)->promo_revenue:0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: SUM((lineitem.l_extendedprice:1!null * (1 (tinyint) - lineitem.l_discount:2!null))), SUM(CASE  WHEN part.p_type LIKE 'PROMO%' THEN (lineitem.l_extendedprice:1!null * (1 (tinyint) - lineitem.l_discount:2!null)) ELSE 0 (tinyint) END)\n" +
 			"     ├─ group: \n" +
@@ -2351,19 +2315,19 @@ order by
 			"         │       ├─ cacheable: true\n" +
 			"         │       ├─ alias-string: select max(total_revenue) from revenue0\n" +
 			"         │       └─ Project\n" +
-			"         │           ├─ columns: [max(revenue0.total_revenue):9!null as max(total_revenue)]\n" +
+			"         │           ├─ columns: [max(revenue0.total_revenue):9!null->max(total_revenue):0]\n" +
 			"         │           └─ GroupBy\n" +
-			"         │               ├─ select: MAX(revenue0.total_revenue:1!null)\n" +
+			"         │               ├─ select: MAX(revenue0.total_revenue:10!null)\n" +
 			"         │               ├─ group: \n" +
 			"         │               └─ SubqueryAlias\n" +
 			"         │                   ├─ name: revenue0\n" +
 			"         │                   ├─ outerVisibility: true\n" +
 			"         │                   ├─ isLateral: false\n" +
 			"         │                   ├─ cacheable: true\n" +
-			"         │                   ├─ colSet: (18,19)\n" +
-			"         │                   ├─ tableId: 2\n" +
+			"         │                   ├─ colSet: (29,30)\n" +
+			"         │                   ├─ tableId: 4\n" +
 			"         │                   └─ Project\n" +
-			"         │                       ├─ columns: [lineitem.l_suppkey:10!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):9!null as sum(l_extendedprice * (1 - l_discount))]\n" +
+			"         │                       ├─ columns: [lineitem.l_suppkey:10!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):9!null->sum(l_extendedprice * (1 - l_discount)):0]\n" +
 			"         │                       └─ GroupBy\n" +
 			"         │                           ├─ select: SUM((lineitem.l_extendedprice:10!null * (1 (tinyint) - lineitem.l_discount:11!null))), lineitem.l_suppkey:9!null\n" +
 			"         │                           ├─ group: lineitem.l_suppkey:9!null\n" +
@@ -2386,10 +2350,10 @@ order by
 			"             │   ├─ outerVisibility: false\n" +
 			"             │   ├─ isLateral: false\n" +
 			"             │   ├─ cacheable: true\n" +
-			"             │   ├─ colSet: (18,19)\n" +
-			"             │   ├─ tableId: 2\n" +
+			"             │   ├─ colSet: (27,28)\n" +
+			"             │   ├─ tableId: 3\n" +
 			"             │   └─ Project\n" +
-			"             │       ├─ columns: [lineitem.l_suppkey:1!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as sum(l_extendedprice * (1 - l_discount))]\n" +
+			"             │       ├─ columns: [lineitem.l_suppkey:1!null, sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null->sum(l_extendedprice * (1 - l_discount)):0]\n" +
 			"             │       └─ GroupBy\n" +
 			"             │           ├─ select: SUM((lineitem.l_extendedprice:1!null * (1 (tinyint) - lineitem.l_discount:2!null))), lineitem.l_suppkey:0!null\n" +
 			"             │           ├─ group: lineitem.l_suppkey:0!null\n" +
@@ -2544,10 +2508,10 @@ order by
 	p_type,
 	p_size;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [part.p_brand:1!null, part.p_type:2!null, part.p_size:3!null, countdistinct([partsupp.ps_suppkey]):0!null as supplier_cnt]\n" +
-			" └─ Sort(countdistinct([partsupp.ps_suppkey]):0!null as supplier_cnt DESC nullsFirst, part.p_brand:1!null ASC nullsFirst, part.p_type:2!null ASC nullsFirst, part.p_size:3!null ASC nullsFirst)\n" +
+			" ├─ columns: [part.p_brand:1!null, part.p_type:2!null, part.p_size:3!null, countdistinct([partsupp.ps_suppkey]):0!null->supplier_cnt:0]\n" +
+			" └─ Sort(supplier_cnt:4!null DESC nullsFirst, part.p_brand:1!null ASC nullsFirst, part.p_type:2!null ASC nullsFirst, part.p_size:3!null ASC nullsFirst)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [countdistinct([partsupp.ps_suppkey]):0!null, part.p_brand:1!null, part.p_type:2!null, part.p_size:3!null, countdistinct([partsupp.ps_suppkey]):0!null as supplier_cnt]\n" +
+			"         ├─ columns: [countdistinct([partsupp.ps_suppkey]):0!null, part.p_brand:1!null, part.p_type:2!null, part.p_size:3!null, countdistinct([partsupp.ps_suppkey]):0!null->supplier_cnt:0]\n" +
 			"         └─ GroupBy\n" +
 			"             ├─ select: COUNTDISTINCT([partsupp.ps_suppkey]), part.p_brand:8!null, part.p_type:9!null, part.p_size:10!null\n" +
 			"             ├─ group: part.p_brand:8!null, part.p_type:9!null, part.p_size:10!null\n" +
@@ -2608,7 +2572,7 @@ order by
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [part.p_brand, part.p_type, part.p_size, countdistinct([partsupp.ps_suppkey]) as supplier_cnt]\n" +
-			" └─ Sort(countdistinct([partsupp.ps_suppkey]) as supplier_cnt DESC, part.p_brand ASC, part.p_type ASC, part.p_size ASC)\n" +
+			" └─ Sort(supplier_cnt DESC, part.p_brand ASC, part.p_type ASC, part.p_size ASC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [countdistinct([partsupp.ps_suppkey]), part.p_brand, part.p_type, part.p_size, countdistinct([partsupp.ps_suppkey]) as supplier_cnt]\n" +
 			"         └─ GroupBy\n" +
@@ -2639,7 +2603,7 @@ order by
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [part.p_brand, part.p_type, part.p_size, countdistinct([partsupp.ps_suppkey]) as supplier_cnt]\n" +
-			" └─ Sort(countdistinct([partsupp.ps_suppkey]) as supplier_cnt DESC, part.p_brand ASC, part.p_type ASC, part.p_size ASC)\n" +
+			" └─ Sort(supplier_cnt DESC, part.p_brand ASC, part.p_type ASC, part.p_size ASC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [countdistinct([partsupp.ps_suppkey]), part.p_brand, part.p_type, part.p_size, countdistinct([partsupp.ps_suppkey]) as supplier_cnt]\n" +
 			"         └─ GroupBy\n" +
@@ -2690,7 +2654,7 @@ where
 			l_partkey = p_partkey
 	);`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [(sum(lineitem.l_extendedprice):0!null / 7 (decimal(2,1))) as avg_yearly]\n" +
+			" ├─ columns: [(sum(lineitem.l_extendedprice):0!null / 7 (decimal(2,1)))->avg_yearly:0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: SUM(lineitem.l_extendedprice:5!null)\n" +
 			"     ├─ group: \n" +
@@ -2701,7 +2665,7 @@ where
 			"         │       ├─ cacheable: false\n" +
 			"         │       ├─ alias-string: select 0.2 * avg(l_quantity) from lineitem where l_partkey = p_partkey\n" +
 			"         │       └─ Project\n" +
-			"         │           ├─ columns: [(0.2 (decimal(2,1)) * avg(lineitem.l_quantity):25) as 0.2 * avg(l_quantity)]\n" +
+			"         │           ├─ columns: [(0.2 (decimal(2,1)) * avg(lineitem.l_quantity):25)->0.2 * avg(l_quantity):0]\n" +
 			"         │           └─ GroupBy\n" +
 			"         │               ├─ select: AVG(lineitem.l_quantity:26!null)\n" +
 			"         │               ├─ group: \n" +
@@ -2829,7 +2793,7 @@ order by
 	o_totalprice desc,
 	o_orderdate;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [customer.c_name:1!null, customer.c_custkey:2!null, orders.o_orderkey:3!null, orders.o_orderdate:4!null, orders.o_totalprice:5!null, sum(lineitem.l_quantity):0!null as sum(l_quantity)]\n" +
+			" ├─ columns: [customer.c_name:1!null, customer.c_custkey:2!null, orders.o_orderkey:3!null, orders.o_orderdate:4!null, orders.o_totalprice:5!null, sum(lineitem.l_quantity):0!null->sum(l_quantity):0]\n" +
 			" └─ Sort(orders.o_totalprice:5!null DESC nullsFirst, orders.o_orderdate:4!null ASC nullsFirst)\n" +
 			"     └─ GroupBy\n" +
 			"         ├─ select: SUM(lineitem.l_quantity:21!null), customer.c_name:1!null, customer.c_custkey:0!null, orders.o_orderkey:8!null, orders.o_orderdate:12!null, orders.o_totalprice:11!null\n" +
@@ -2970,7 +2934,7 @@ where
 		and l_shipinstruct = 'DELIVER IN PERSON'
 	);`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null as revenue]\n" +
+			" ├─ columns: [sum((lineitem.l_extendedprice * (1 - lineitem.l_discount))):0!null->revenue:0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: SUM((lineitem.l_extendedprice:2!null * (1 (tinyint) - lineitem.l_discount:3!null)))\n" +
 			"     ├─ group: \n" +
@@ -3222,7 +3186,7 @@ order by
 			"         │   │           │       ├─ cacheable: false\n" +
 			"         │   │           │       ├─ alias-string: select 0.5 * sum(l_quantity) from lineitem where l_partkey = ps_partkey and l_suppkey = ps_suppkey and l_shipdate >= '1994-01-01' and l_shipdate < '1994-01-01' + interval '1' year\n" +
 			"         │   │           │       └─ Project\n" +
-			"         │   │           │           ├─ columns: [(0.5 (decimal(2,1)) * sum(lineitem.l_quantity):5!null) as 0.5 * sum(l_quantity)]\n" +
+			"         │   │           │           ├─ columns: [(0.5 (decimal(2,1)) * sum(lineitem.l_quantity):5!null)->0.5 * sum(l_quantity):0]\n" +
 			"         │   │           │           └─ GroupBy\n" +
 			"         │   │           │               ├─ select: SUM(lineitem.l_quantity:7!null)\n" +
 			"         │   │           │               ├─ group: \n" +
@@ -3460,10 +3424,10 @@ order by
 	numwait desc,
 	s_name;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [supplier.s_name:1!null, count(1):0!null as numwait]\n" +
-			" └─ Sort(count(1):0!null as numwait DESC nullsFirst, supplier.s_name:1!null ASC nullsFirst)\n" +
+			" ├─ columns: [supplier.s_name:1!null, count(1):0!null->numwait:0]\n" +
+			" └─ Sort(numwait:2!null DESC nullsFirst, supplier.s_name:1!null ASC nullsFirst)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [count(1):0!null, supplier.s_name:1!null, count(1):0!null as numwait]\n" +
+			"         ├─ columns: [count(1):0!null, supplier.s_name:1!null, count(1):0!null->numwait:0]\n" +
 			"         └─ GroupBy\n" +
 			"             ├─ select: COUNT(1 (bigint)), supplier.s_name:26!null\n" +
 			"             ├─ group: supplier.s_name:26!null\n" +
@@ -3553,7 +3517,7 @@ order by
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [supplier.s_name, count(1) as numwait]\n" +
-			" └─ Sort(count(1) as numwait DESC, supplier.s_name ASC)\n" +
+			" └─ Sort(numwait DESC, supplier.s_name ASC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [count(1), supplier.s_name, count(1) as numwait]\n" +
 			"         └─ GroupBy\n" +
@@ -3600,7 +3564,7 @@ order by
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [supplier.s_name, count(1) as numwait]\n" +
-			" └─ Sort(count(1) as numwait DESC, supplier.s_name ASC)\n" +
+			" └─ Sort(numwait DESC, supplier.s_name ASC)\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [count(1), supplier.s_name, count(1) as numwait]\n" +
 			"         └─ GroupBy\n" +
@@ -3687,169 +3651,163 @@ group by
 order by
 	cntrycode;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [custsale.cntrycode:2!null, count(1):0!null as numcust, sum(custsale.c_acctbal):1!null as totacctbal]\n" +
+			" ├─ columns: [custsale.cntrycode:2!null, count(1):0!null->numcust:0, sum(custsale.c_acctbal):1!null->totacctbal:0]\n" +
 			" └─ Sort(custsale.cntrycode:2!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [count(1):0!null, sum(custsale.c_acctbal):1!null, custsale.cntrycode:2!null, count(1):0!null as numcust, sum(custsale.c_acctbal):1!null as totacctbal]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ select: COUNT(1 (bigint)), SUM(custsale.c_acctbal:1!null), custsale.cntrycode:0!null\n" +
-			"             ├─ group: custsale.cntrycode:0!null\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: custsale\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 ├─ colSet: (28,29)\n" +
-			"                 ├─ tableId: 4\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [SUBSTRING(customer.c_phone, 1, 2) as cntrycode, customer.c_acctbal:5!null]\n" +
-			"                     └─ Filter\n" +
-			"                         ├─ GreaterThan\n" +
-			"                         │   ├─ customer.c_acctbal:5!null\n" +
-			"                         │   └─ Subquery\n" +
-			"                         │       ├─ cacheable: true\n" +
-			"                         │       ├─ alias-string: select avg(c_acctbal) from customer where c_acctbal > 0.00 and substr(c_phone, 1, 2) in ('13', '31', '23', '29', '30', '18', '17')\n" +
-			"                         │       └─ Project\n" +
-			"                         │           ├─ columns: [avg(customer.c_acctbal):8 as avg(c_acctbal)]\n" +
-			"                         │           └─ GroupBy\n" +
-			"                         │               ├─ select: AVG(customer.c_acctbal:9!null)\n" +
-			"                         │               ├─ group: \n" +
-			"                         │               └─ Filter\n" +
-			"                         │                   ├─ AND\n" +
-			"                         │                   │   ├─ GreaterThan\n" +
-			"                         │                   │   │   ├─ customer.c_acctbal:9!null\n" +
-			"                         │                   │   │   └─ 0 (decimal(15,2))\n" +
-			"                         │                   │   └─ HashIn\n" +
-			"                         │                   │       ├─ SUBSTRING(customer.c_phone, 1, 2)\n" +
-			"                         │                   │       └─ TUPLE(13 (longtext), 31 (longtext), 23 (longtext), 29 (longtext), 30 (longtext), 18 (longtext), 17 (longtext))\n" +
-			"                         │                   └─ Table\n" +
-			"                         │                       ├─ name: customer\n" +
-			"                         │                       ├─ columns: [c_phone c_acctbal]\n" +
-			"                         │                       ├─ colSet: (9-16)\n" +
-			"                         │                       └─ tableId: 2\n" +
-			"                         └─ Project\n" +
-			"                             ├─ columns: [customer.C_CUSTKEY:0!null, customer.C_NAME:1!null, customer.C_ADDRESS:2!null, customer.C_NATIONKEY:3!null, customer.C_PHONE:4!null, customer.C_ACCTBAL:5!null, customer.C_MKTSEGMENT:6!null, customer.C_COMMENT:7!null]\n" +
-			"                             └─ Filter\n" +
-			"                                 ├─ orders.o_custkey:8!null IS NULL\n" +
-			"                                 └─ LeftOuterHashJoinExcludeNulls\n" +
-			"                                     ├─ Eq\n" +
-			"                                     │   ├─ orders.o_custkey:8!null\n" +
-			"                                     │   └─ customer.c_custkey:0!null\n" +
-			"                                     ├─ Filter\n" +
-			"                                     │   ├─ HashIn\n" +
-			"                                     │   │   ├─ SUBSTRING(customer.c_phone, 1, 2)\n" +
-			"                                     │   │   └─ TUPLE(13 (longtext), 31 (longtext), 23 (longtext), 29 (longtext), 30 (longtext), 18 (longtext), 17 (longtext))\n" +
-			"                                     │   └─ Table\n" +
-			"                                     │       ├─ name: customer\n" +
-			"                                     │       ├─ columns: [c_custkey c_name c_address c_nationkey c_phone c_acctbal c_mktsegment c_comment]\n" +
-			"                                     │       ├─ colSet: (1-8)\n" +
-			"                                     │       └─ tableId: 1\n" +
-			"                                     └─ HashLookup\n" +
-			"                                         ├─ left-key: TUPLE(customer.c_custkey:0!null)\n" +
-			"                                         ├─ right-key: TUPLE(orders.o_custkey:0!null)\n" +
-			"                                         └─ Project\n" +
-			"                                             ├─ columns: [orders.o_custkey:1!null]\n" +
-			"                                             └─ Table\n" +
-			"                                                 ├─ name: orders\n" +
-			"                                                 ├─ columns: [o_orderkey o_custkey o_orderstatus o_totalprice o_orderdate o_orderpriority o_clerk o_shippriority o_comment]\n" +
-			"                                                 ├─ colSet: (18-26)\n" +
-			"                                                 └─ tableId: 3\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ select: COUNT(1 (bigint)), SUM(custsale.c_acctbal:1!null), custsale.cntrycode:0!null\n" +
+			"         ├─ group: custsale.cntrycode:0!null\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: custsale\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             ├─ colSet: (28,29)\n" +
+			"             ├─ tableId: 4\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [SUBSTRING(customer.c_phone, 1, 2)->cntrycode:0, customer.c_acctbal:5!null]\n" +
+			"                 └─ Filter\n" +
+			"                     ├─ GreaterThan\n" +
+			"                     │   ├─ customer.c_acctbal:5!null\n" +
+			"                     │   └─ Subquery\n" +
+			"                     │       ├─ cacheable: true\n" +
+			"                     │       ├─ alias-string: select avg(c_acctbal) from customer where c_acctbal > 0.00 and substr(c_phone, 1, 2) in ('13', '31', '23', '29', '30', '18', '17')\n" +
+			"                     │       └─ Project\n" +
+			"                     │           ├─ columns: [avg(customer.c_acctbal):8->avg(c_acctbal):0]\n" +
+			"                     │           └─ GroupBy\n" +
+			"                     │               ├─ select: AVG(customer.c_acctbal:9!null)\n" +
+			"                     │               ├─ group: \n" +
+			"                     │               └─ Filter\n" +
+			"                     │                   ├─ AND\n" +
+			"                     │                   │   ├─ GreaterThan\n" +
+			"                     │                   │   │   ├─ customer.c_acctbal:9!null\n" +
+			"                     │                   │   │   └─ 0 (decimal(15,2))\n" +
+			"                     │                   │   └─ HashIn\n" +
+			"                     │                   │       ├─ SUBSTRING(customer.c_phone, 1, 2)\n" +
+			"                     │                   │       └─ TUPLE(13 (longtext), 31 (longtext), 23 (longtext), 29 (longtext), 30 (longtext), 18 (longtext), 17 (longtext))\n" +
+			"                     │                   └─ Table\n" +
+			"                     │                       ├─ name: customer\n" +
+			"                     │                       ├─ columns: [c_phone c_acctbal]\n" +
+			"                     │                       ├─ colSet: (9-16)\n" +
+			"                     │                       └─ tableId: 2\n" +
+			"                     └─ Project\n" +
+			"                         ├─ columns: [customer.C_CUSTKEY:0!null, customer.C_NAME:1!null, customer.C_ADDRESS:2!null, customer.C_NATIONKEY:3!null, customer.C_PHONE:4!null, customer.C_ACCTBAL:5!null, customer.C_MKTSEGMENT:6!null, customer.C_COMMENT:7!null]\n" +
+			"                         └─ Filter\n" +
+			"                             ├─ orders.o_custkey:8!null IS NULL\n" +
+			"                             └─ LeftOuterHashJoinExcludeNulls\n" +
+			"                                 ├─ Eq\n" +
+			"                                 │   ├─ orders.o_custkey:8!null\n" +
+			"                                 │   └─ customer.c_custkey:0!null\n" +
+			"                                 ├─ Filter\n" +
+			"                                 │   ├─ HashIn\n" +
+			"                                 │   │   ├─ SUBSTRING(customer.c_phone, 1, 2)\n" +
+			"                                 │   │   └─ TUPLE(13 (longtext), 31 (longtext), 23 (longtext), 29 (longtext), 30 (longtext), 18 (longtext), 17 (longtext))\n" +
+			"                                 │   └─ Table\n" +
+			"                                 │       ├─ name: customer\n" +
+			"                                 │       ├─ columns: [c_custkey c_name c_address c_nationkey c_phone c_acctbal c_mktsegment c_comment]\n" +
+			"                                 │       ├─ colSet: (1-8)\n" +
+			"                                 │       └─ tableId: 1\n" +
+			"                                 └─ HashLookup\n" +
+			"                                     ├─ left-key: TUPLE(customer.c_custkey:0!null)\n" +
+			"                                     ├─ right-key: TUPLE(orders.o_custkey:0!null)\n" +
+			"                                     └─ Project\n" +
+			"                                         ├─ columns: [orders.o_custkey:1!null]\n" +
+			"                                         └─ Table\n" +
+			"                                             ├─ name: orders\n" +
+			"                                             ├─ columns: [o_orderkey o_custkey o_orderstatus o_totalprice o_orderdate o_orderpriority o_clerk o_shippriority o_comment]\n" +
+			"                                             ├─ colSet: (18-26)\n" +
+			"                                             └─ tableId: 3\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [custsale.cntrycode, count(1) as numcust, sum(custsale.c_acctbal) as totacctbal]\n" +
 			" └─ Sort(custsale.cntrycode ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [count(1), sum(custsale.c_acctbal), custsale.cntrycode, count(1) as numcust, sum(custsale.c_acctbal) as totacctbal]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(COUNT(1), SUM(custsale.c_acctbal), custsale.cntrycode)\n" +
-			"             ├─ Grouping(custsale.cntrycode)\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: custsale\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [SUBSTRING(customer.c_phone, 1, 2) as cntrycode, customer.c_acctbal]\n" +
-			"                     └─ Filter\n" +
-			"                         ├─ (customer.c_acctbal > Subquery\n" +
-			"                         │   ├─ cacheable: true\n" +
-			"                         │   └─ Project\n" +
-			"                         │       ├─ columns: [avg(customer.c_acctbal) as avg(c_acctbal)]\n" +
-			"                         │       └─ GroupBy\n" +
-			"                         │           ├─ SelectedExprs(AVG(customer.c_acctbal))\n" +
-			"                         │           ├─ Grouping()\n" +
-			"                         │           └─ Filter\n" +
-			"                         │               ├─ ((customer.c_acctbal > 0.00) AND (SUBSTRING(customer.c_phone, 1, 2) HASH IN ('13', '31', '23', '29', '30', '18', '17')))\n" +
-			"                         │               └─ Table\n" +
-			"                         │                   ├─ name: customer\n" +
-			"                         │                   └─ columns: [c_phone c_acctbal]\n" +
-			"                         │  )\n" +
-			"                         └─ Project\n" +
-			"                             ├─ columns: [customer.C_CUSTKEY, customer.C_NAME, customer.C_ADDRESS, customer.C_NATIONKEY, customer.C_PHONE, customer.C_ACCTBAL, customer.C_MKTSEGMENT, customer.C_COMMENT]\n" +
-			"                             └─ Filter\n" +
-			"                                 ├─ orders.o_custkey IS NULL\n" +
-			"                                 └─ LeftOuterHashJoinExcludeNulls\n" +
-			"                                     ├─ (orders.o_custkey = customer.c_custkey)\n" +
-			"                                     ├─ Filter\n" +
-			"                                     │   ├─ (SUBSTRING(customer.c_phone, 1, 2) HASH IN ('13', '31', '23', '29', '30', '18', '17'))\n" +
-			"                                     │   └─ Table\n" +
-			"                                     │       └─ name: customer\n" +
-			"                                     └─ HashLookup\n" +
-			"                                         ├─ left-key: (customer.c_custkey)\n" +
-			"                                         ├─ right-key: (orders.o_custkey)\n" +
-			"                                         └─ Project\n" +
-			"                                             ├─ columns: [orders.o_custkey]\n" +
-			"                                             └─ Table\n" +
-			"                                                 ├─ name: orders\n" +
-			"                                                 └─ columns: [o_orderkey o_custkey o_orderstatus o_totalprice o_orderdate o_orderpriority o_clerk o_shippriority o_comment]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(COUNT(1), SUM(custsale.c_acctbal), custsale.cntrycode)\n" +
+			"         ├─ Grouping(custsale.cntrycode)\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: custsale\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [SUBSTRING(customer.c_phone, 1, 2) as cntrycode, customer.c_acctbal]\n" +
+			"                 └─ Filter\n" +
+			"                     ├─ (customer.c_acctbal > Subquery\n" +
+			"                     │   ├─ cacheable: true\n" +
+			"                     │   └─ Project\n" +
+			"                     │       ├─ columns: [avg(customer.c_acctbal) as avg(c_acctbal)]\n" +
+			"                     │       └─ GroupBy\n" +
+			"                     │           ├─ SelectedExprs(AVG(customer.c_acctbal))\n" +
+			"                     │           ├─ Grouping()\n" +
+			"                     │           └─ Filter\n" +
+			"                     │               ├─ ((customer.c_acctbal > 0.00) AND (SUBSTRING(customer.c_phone, 1, 2) HASH IN ('13', '31', '23', '29', '30', '18', '17')))\n" +
+			"                     │               └─ Table\n" +
+			"                     │                   ├─ name: customer\n" +
+			"                     │                   └─ columns: [c_phone c_acctbal]\n" +
+			"                     │  )\n" +
+			"                     └─ Project\n" +
+			"                         ├─ columns: [customer.C_CUSTKEY, customer.C_NAME, customer.C_ADDRESS, customer.C_NATIONKEY, customer.C_PHONE, customer.C_ACCTBAL, customer.C_MKTSEGMENT, customer.C_COMMENT]\n" +
+			"                         └─ Filter\n" +
+			"                             ├─ orders.o_custkey IS NULL\n" +
+			"                             └─ LeftOuterHashJoinExcludeNulls\n" +
+			"                                 ├─ (orders.o_custkey = customer.c_custkey)\n" +
+			"                                 ├─ Filter\n" +
+			"                                 │   ├─ (SUBSTRING(customer.c_phone, 1, 2) HASH IN ('13', '31', '23', '29', '30', '18', '17'))\n" +
+			"                                 │   └─ Table\n" +
+			"                                 │       └─ name: customer\n" +
+			"                                 └─ HashLookup\n" +
+			"                                     ├─ left-key: (customer.c_custkey)\n" +
+			"                                     ├─ right-key: (orders.o_custkey)\n" +
+			"                                     └─ Project\n" +
+			"                                         ├─ columns: [orders.o_custkey]\n" +
+			"                                         └─ Table\n" +
+			"                                             ├─ name: orders\n" +
+			"                                             └─ columns: [o_orderkey o_custkey o_orderstatus o_totalprice o_orderdate o_orderpriority o_clerk o_shippriority o_comment]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [custsale.cntrycode, count(1) as numcust, sum(custsale.c_acctbal) as totacctbal]\n" +
 			" └─ Sort(custsale.cntrycode ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [count(1), sum(custsale.c_acctbal), custsale.cntrycode, count(1) as numcust, sum(custsale.c_acctbal) as totacctbal]\n" +
-			"         └─ GroupBy\n" +
-			"             ├─ SelectedExprs(COUNT(1), SUM(custsale.c_acctbal), custsale.cntrycode)\n" +
-			"             ├─ Grouping(custsale.cntrycode)\n" +
-			"             └─ SubqueryAlias\n" +
-			"                 ├─ name: custsale\n" +
-			"                 ├─ outerVisibility: false\n" +
-			"                 ├─ isLateral: false\n" +
-			"                 ├─ cacheable: true\n" +
-			"                 └─ Project\n" +
-			"                     ├─ columns: [SUBSTRING(customer.c_phone, 1, 2) as cntrycode, customer.c_acctbal]\n" +
-			"                     └─ Filter\n" +
-			"                         ├─ (customer.c_acctbal > Subquery\n" +
-			"                         │   ├─ cacheable: true\n" +
-			"                         │   └─ Project\n" +
-			"                         │       ├─ columns: [avg(customer.c_acctbal) as avg(c_acctbal)]\n" +
-			"                         │       └─ GroupBy\n" +
-			"                         │           ├─ SelectedExprs(AVG(customer.c_acctbal))\n" +
-			"                         │           ├─ Grouping()\n" +
-			"                         │           └─ Filter\n" +
-			"                         │               ├─ ((customer.c_acctbal > 0.00) AND (SUBSTRING(customer.c_phone, 1, 2) HASH IN ('13', '31', '23', '29', '30', '18', '17')))\n" +
-			"                         │               └─ Table\n" +
-			"                         │                   ├─ name: customer\n" +
-			"                         │                   └─ columns: [c_phone c_acctbal]\n" +
-			"                         │  )\n" +
-			"                         └─ Project\n" +
-			"                             ├─ columns: [customer.C_CUSTKEY, customer.C_NAME, customer.C_ADDRESS, customer.C_NATIONKEY, customer.C_PHONE, customer.C_ACCTBAL, customer.C_MKTSEGMENT, customer.C_COMMENT]\n" +
-			"                             └─ Filter\n" +
-			"                                 ├─ orders.o_custkey IS NULL\n" +
-			"                                 └─ LeftOuterHashJoinExcludeNulls\n" +
-			"                                     ├─ (orders.o_custkey = customer.c_custkey)\n" +
-			"                                     ├─ Filter\n" +
-			"                                     │   ├─ (SUBSTRING(customer.c_phone, 1, 2) HASH IN ('13', '31', '23', '29', '30', '18', '17'))\n" +
-			"                                     │   └─ Table\n" +
-			"                                     │       └─ name: customer\n" +
-			"                                     └─ HashLookup\n" +
-			"                                         ├─ left-key: (customer.c_custkey)\n" +
-			"                                         ├─ right-key: (orders.o_custkey)\n" +
-			"                                         └─ Project\n" +
-			"                                             ├─ columns: [orders.o_custkey]\n" +
-			"                                             └─ Table\n" +
-			"                                                 ├─ name: orders\n" +
-			"                                                 └─ columns: [o_orderkey o_custkey o_orderstatus o_totalprice o_orderdate o_orderpriority o_clerk o_shippriority o_comment]\n" +
+			"     └─ GroupBy\n" +
+			"         ├─ SelectedExprs(COUNT(1), SUM(custsale.c_acctbal), custsale.cntrycode)\n" +
+			"         ├─ Grouping(custsale.cntrycode)\n" +
+			"         └─ SubqueryAlias\n" +
+			"             ├─ name: custsale\n" +
+			"             ├─ outerVisibility: false\n" +
+			"             ├─ isLateral: false\n" +
+			"             ├─ cacheable: true\n" +
+			"             └─ Project\n" +
+			"                 ├─ columns: [SUBSTRING(customer.c_phone, 1, 2) as cntrycode, customer.c_acctbal]\n" +
+			"                 └─ Filter\n" +
+			"                     ├─ (customer.c_acctbal > Subquery\n" +
+			"                     │   ├─ cacheable: true\n" +
+			"                     │   └─ Project\n" +
+			"                     │       ├─ columns: [avg(customer.c_acctbal) as avg(c_acctbal)]\n" +
+			"                     │       └─ GroupBy\n" +
+			"                     │           ├─ SelectedExprs(AVG(customer.c_acctbal))\n" +
+			"                     │           ├─ Grouping()\n" +
+			"                     │           └─ Filter\n" +
+			"                     │               ├─ ((customer.c_acctbal > 0.00) AND (SUBSTRING(customer.c_phone, 1, 2) HASH IN ('13', '31', '23', '29', '30', '18', '17')))\n" +
+			"                     │               └─ Table\n" +
+			"                     │                   ├─ name: customer\n" +
+			"                     │                   └─ columns: [c_phone c_acctbal]\n" +
+			"                     │  )\n" +
+			"                     └─ Project\n" +
+			"                         ├─ columns: [customer.C_CUSTKEY, customer.C_NAME, customer.C_ADDRESS, customer.C_NATIONKEY, customer.C_PHONE, customer.C_ACCTBAL, customer.C_MKTSEGMENT, customer.C_COMMENT]\n" +
+			"                         └─ Filter\n" +
+			"                             ├─ orders.o_custkey IS NULL\n" +
+			"                             └─ LeftOuterHashJoinExcludeNulls\n" +
+			"                                 ├─ (orders.o_custkey = customer.c_custkey)\n" +
+			"                                 ├─ Filter\n" +
+			"                                 │   ├─ (SUBSTRING(customer.c_phone, 1, 2) HASH IN ('13', '31', '23', '29', '30', '18', '17'))\n" +
+			"                                 │   └─ Table\n" +
+			"                                 │       └─ name: customer\n" +
+			"                                 └─ HashLookup\n" +
+			"                                     ├─ left-key: (customer.c_custkey)\n" +
+			"                                     ├─ right-key: (orders.o_custkey)\n" +
+			"                                     └─ Project\n" +
+			"                                         ├─ columns: [orders.o_custkey]\n" +
+			"                                         └─ Table\n" +
+			"                                             ├─ name: orders\n" +
+			"                                             └─ columns: [o_orderkey o_custkey o_orderstatus o_totalprice o_orderdate o_orderpriority o_clerk o_shippriority o_comment]\n" +
 			"",
 	},
 }

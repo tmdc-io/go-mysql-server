@@ -15,6 +15,7 @@
 package sql
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -73,11 +74,11 @@ type Type interface {
 	CollationCoercible
 	// Compare returns an integer comparing two values.
 	// The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
-	Compare(interface{}, interface{}) (int, error)
+	Compare(context.Context, interface{}, interface{}) (int, error)
 	// Convert a value of a compatible type to a most accurate type, returning
 	// the new value, whether the value in range, or an error. If |inRange| is
 	// false, the value was coerced according to MySQL's rules.
-	Convert(interface{}) (interface{}, ConvertInRange, error)
+	Convert(context.Context, interface{}) (interface{}, ConvertInRange, error)
 	// Equals returns whether the given type is equivalent to the calling type. All parameters are included in the
 	// comparison, so ENUM("a", "b") is not equivalent to ENUM("a", "b", "c").
 	Equals(otherType Type) bool
@@ -147,7 +148,7 @@ type StringType interface {
 // The type of the returned value is time.Time.
 type DatetimeType interface {
 	Type
-	ConvertWithoutRangeCheck(v interface{}) (time.Time, error)
+	ConvertWithoutRangeCheck(ctx context.Context, v interface{}) (time.Time, error)
 	MaximumTime() time.Time
 	MinimumTime() time.Time
 	Precision() int
@@ -186,6 +187,9 @@ type EnumType interface {
 	Collation() CollationID
 	// IndexOf returns the index of the given string. If the string was not found, then this returns -1.
 	IndexOf(v string) int
+	// IsSubsetOf returns whether every element in this is also in |otherType|, with the same indexes.
+	// |otherType| may contain additional elements not in this.
+	IsSubsetOf(otherType EnumType) bool
 	// NumberOfElements returns the number of enumerations.
 	NumberOfElements() uint16
 	// Values returns the elements, in order, of every enumeration.

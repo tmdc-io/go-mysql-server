@@ -18,6 +18,186 @@ package queries
 
 var PlanTests = []QueryPlanTest{
 	{
+		Query: `
+Select x
+from (select * from xy) sq1
+union all
+select u
+from (select * from uv) sq2
+limit 1
+offset 1;`,
+		ExpectedPlan: "Union all\n" +
+			" ├─ limit: 1\n" +
+			" ├─ offset: 1\n" +
+			" ├─ Project\n" +
+			" │   ├─ columns: [sq1.x:0!null]\n" +
+			" │   └─ SubqueryAlias\n" +
+			" │       ├─ name: sq1\n" +
+			" │       ├─ outerVisibility: false\n" +
+			" │       ├─ isLateral: false\n" +
+			" │       ├─ cacheable: true\n" +
+			" │       ├─ colSet: (3,4)\n" +
+			" │       ├─ tableId: 2\n" +
+			" │       └─ Table\n" +
+			" │           ├─ name: xy\n" +
+			" │           ├─ columns: [x y]\n" +
+			" │           ├─ colSet: (1,2)\n" +
+			" │           └─ tableId: 1\n" +
+			" └─ Project\n" +
+			"     ├─ columns: [sq2.u:0!null]\n" +
+			"     └─ SubqueryAlias\n" +
+			"         ├─ name: sq2\n" +
+			"         ├─ outerVisibility: false\n" +
+			"         ├─ isLateral: false\n" +
+			"         ├─ cacheable: true\n" +
+			"         ├─ colSet: (7,8)\n" +
+			"         ├─ tableId: 4\n" +
+			"         └─ Table\n" +
+			"             ├─ name: uv\n" +
+			"             ├─ columns: [u v]\n" +
+			"             ├─ colSet: (5,6)\n" +
+			"             └─ tableId: 3\n" +
+			"",
+		ExpectedEstimates: "Union all\n" +
+			" ├─ limit: 1\n" +
+			" ├─ offset: 1\n" +
+			" ├─ Project\n" +
+			" │   ├─ columns: [sq1.x]\n" +
+			" │   └─ SubqueryAlias\n" +
+			" │       ├─ name: sq1\n" +
+			" │       ├─ outerVisibility: false\n" +
+			" │       ├─ isLateral: false\n" +
+			" │       ├─ cacheable: true\n" +
+			" │       └─ Table\n" +
+			" │           ├─ name: xy\n" +
+			" │           └─ columns: [x y]\n" +
+			" └─ Project\n" +
+			"     ├─ columns: [sq2.u]\n" +
+			"     └─ SubqueryAlias\n" +
+			"         ├─ name: sq2\n" +
+			"         ├─ outerVisibility: false\n" +
+			"         ├─ isLateral: false\n" +
+			"         ├─ cacheable: true\n" +
+			"         └─ Table\n" +
+			"             ├─ name: uv\n" +
+			"             └─ columns: [u v]\n" +
+			"",
+		ExpectedAnalysis: "Union all\n" +
+			" ├─ limit: 1\n" +
+			" ├─ offset: 1\n" +
+			" ├─ Project\n" +
+			" │   ├─ columns: [sq1.x]\n" +
+			" │   └─ SubqueryAlias\n" +
+			" │       ├─ name: sq1\n" +
+			" │       ├─ outerVisibility: false\n" +
+			" │       ├─ isLateral: false\n" +
+			" │       ├─ cacheable: true\n" +
+			" │       └─ Table\n" +
+			" │           ├─ name: xy\n" +
+			" │           └─ columns: [x y]\n" +
+			" └─ Project\n" +
+			"     ├─ columns: [sq2.u]\n" +
+			"     └─ SubqueryAlias\n" +
+			"         ├─ name: sq2\n" +
+			"         ├─ outerVisibility: false\n" +
+			"         ├─ isLateral: false\n" +
+			"         ├─ cacheable: true\n" +
+			"         └─ Table\n" +
+			"             ├─ name: uv\n" +
+			"             └─ columns: [u v]\n" +
+			"",
+	},
+	{
+		Query: `WITH cte AS (SELECT * FROM xy) SELECT *, (SELECT SUM(x) FROM cte) AS xy FROM cte`,
+		ExpectedPlan: "Project\n" +
+			" ├─ columns: [cte.x:0!null, cte.y:1, Subquery\n" +
+			" │   ├─ cacheable: true\n" +
+			" │   ├─ alias-string: select SUM(x) from cte\n" +
+			" │   └─ Project\n" +
+			" │       ├─ columns: [sum(cte.x):2!null->SUM(x):0]\n" +
+			" │       └─ GroupBy\n" +
+			" │           ├─ select: SUM(cte.x:2!null)\n" +
+			" │           ├─ group: \n" +
+			" │           └─ SubqueryAlias\n" +
+			" │               ├─ name: cte\n" +
+			" │               ├─ outerVisibility: true\n" +
+			" │               ├─ isLateral: false\n" +
+			" │               ├─ cacheable: true\n" +
+			" │               ├─ colSet: (7,8)\n" +
+			" │               ├─ tableId: 4\n" +
+			" │               └─ Table\n" +
+			" │                   ├─ name: xy\n" +
+			" │                   ├─ columns: [x y]\n" +
+			" │                   ├─ colSet: (1,2)\n" +
+			" │                   └─ tableId: 1\n" +
+			" │  ->xy:0]\n" +
+			" └─ SubqueryAlias\n" +
+			"     ├─ name: cte\n" +
+			"     ├─ outerVisibility: false\n" +
+			"     ├─ isLateral: false\n" +
+			"     ├─ cacheable: true\n" +
+			"     ├─ colSet: (5,6)\n" +
+			"     ├─ tableId: 3\n" +
+			"     └─ Table\n" +
+			"         ├─ name: xy\n" +
+			"         ├─ columns: [x y]\n" +
+			"         ├─ colSet: (1,2)\n" +
+			"         └─ tableId: 1\n" +
+			"",
+		ExpectedEstimates: "Project\n" +
+			" ├─ columns: [cte.x, cte.y, Subquery\n" +
+			" │   ├─ cacheable: true\n" +
+			" │   └─ Project\n" +
+			" │       ├─ columns: [sum(cte.x) as SUM(x)]\n" +
+			" │       └─ GroupBy\n" +
+			" │           ├─ SelectedExprs(SUM(cte.x))\n" +
+			" │           ├─ Grouping()\n" +
+			" │           └─ SubqueryAlias\n" +
+			" │               ├─ name: cte\n" +
+			" │               ├─ outerVisibility: true\n" +
+			" │               ├─ isLateral: false\n" +
+			" │               ├─ cacheable: true\n" +
+			" │               └─ Table\n" +
+			" │                   ├─ name: xy\n" +
+			" │                   └─ columns: [x y]\n" +
+			" │   as xy]\n" +
+			" └─ SubqueryAlias\n" +
+			"     ├─ name: cte\n" +
+			"     ├─ outerVisibility: false\n" +
+			"     ├─ isLateral: false\n" +
+			"     ├─ cacheable: true\n" +
+			"     └─ Table\n" +
+			"         ├─ name: xy\n" +
+			"         └─ columns: [x y]\n" +
+			"",
+		ExpectedAnalysis: "Project\n" +
+			" ├─ columns: [cte.x, cte.y, Subquery\n" +
+			" │   ├─ cacheable: true\n" +
+			" │   └─ Project\n" +
+			" │       ├─ columns: [sum(cte.x) as SUM(x)]\n" +
+			" │       └─ GroupBy\n" +
+			" │           ├─ SelectedExprs(SUM(cte.x))\n" +
+			" │           ├─ Grouping()\n" +
+			" │           └─ SubqueryAlias\n" +
+			" │               ├─ name: cte\n" +
+			" │               ├─ outerVisibility: true\n" +
+			" │               ├─ isLateral: false\n" +
+			" │               ├─ cacheable: true\n" +
+			" │               └─ Table\n" +
+			" │                   ├─ name: xy\n" +
+			" │                   └─ columns: [x y]\n" +
+			" │   as xy]\n" +
+			" └─ SubqueryAlias\n" +
+			"     ├─ name: cte\n" +
+			"     ├─ outerVisibility: false\n" +
+			"     ├─ isLateral: false\n" +
+			"     ├─ cacheable: true\n" +
+			"     └─ Table\n" +
+			"         ├─ name: xy\n" +
+			"         └─ columns: [x y]\n" +
+			"",
+	},
+	{
 		Query: `select x from xy where y in (select xy.x from xy join (select t2.y from xy t2 where exists (select t3.y from xy t3 where t3.y = xy.x)) t1);`,
 		ExpectedPlan: "Project\n" +
 			" ├─ columns: [xy.x:0!null]\n" +
@@ -163,9 +343,9 @@ var PlanTests = []QueryPlanTest{
 	{
 		Query: `select count(i) from mytable`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(mytable.i):0!null as count(i)]\n" +
+			" ├─ columns: [count(mytable.i):0!null->count(i):0]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [mytable.COUNT(mytable.i):0!null as COUNT(mytable.i)]\n" +
+			"     ├─ columns: [mytable.COUNT(mytable.i):0!null->COUNT(mytable.i):0]\n" +
 			"     └─ table_count(mytable) as COUNT(mytable.i)\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
@@ -184,7 +364,7 @@ var PlanTests = []QueryPlanTest{
 	{
 		Query: `select count(pk1) from two_pk`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(two_pk.pk1):0!null as count(pk1)]\n" +
+			" ├─ columns: [count(two_pk.pk1):0!null->count(pk1):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(two_pk.pk1:0!null)\n" +
 			"     ├─ group: \n" +
@@ -396,7 +576,7 @@ From xy;`,
 			" │                           └─ Table\n" +
 			" │                               ├─ name: uv\n" +
 			" │                               └─ columns: [u]\n" +
-			" │   THEN 1 (tinyint) ELSE 2 (tinyint) END as s]\n" +
+			" │   THEN 1 (tinyint) ELSE 2 (tinyint) END->s:0]\n" +
 			" └─ Project\n" +
 			"     ├─ columns: [xy.x:0!null, xy.y:1, CASE  WHEN xy.x:0!null IS NULL THEN 0 (tinyint) WHEN InSubquery\n" +
 			"     │   ├─ left: xy.x:0!null\n" +
@@ -429,7 +609,7 @@ From xy;`,
 			"     │                           └─ Table\n" +
 			"     │                               ├─ name: uv\n" +
 			"     │                               └─ columns: [u]\n" +
-			"     │   THEN 1 (tinyint) ELSE 2 (tinyint) END as s]\n" +
+			"     │   THEN 1 (tinyint) ELSE 2 (tinyint) END->s:0]\n" +
 			"     └─ ProcessTable\n" +
 			"         └─ Table\n" +
 			"             ├─ name: xy\n" +
@@ -559,7 +739,7 @@ From xy;`,
 	{
 		Query: `select /*+ JOIN_ORDER(uv,xy) */ count(*) from xy where y in (select distinct v from uv);`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*)]\n" +
+			" ├─ columns: [count(1):0!null->count(*):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint))\n" +
 			"     ├─ group: \n" +
@@ -620,7 +800,7 @@ From xy;`,
 	{
 		Query: `SELECT /*+ JOIN_ORDER(uv,xy) */ count(*) from xy where y in (select distinct u from uv);`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*)]\n" +
+			" ├─ columns: [count(1):0!null->count(*):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint))\n" +
 			"     ├─ group: \n" +
@@ -680,9 +860,9 @@ From xy;`,
 	{
 		Query: `select count(*) from mytable`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*)]\n" +
+			" ├─ columns: [count(1):0!null->count(*):0]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [mytable.COUNT(1):0!null as COUNT(1)]\n" +
+			"     ├─ columns: [mytable.COUNT(1):0!null->COUNT(1):0]\n" +
 			"     └─ table_count(mytable) as COUNT(1)\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
@@ -701,9 +881,9 @@ From xy;`,
 	{
 		Query: `select count(*) as cnt from mytable`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as cnt]\n" +
+			" ├─ columns: [count(1):0!null->cnt:0]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [mytable.COUNT(1):0!null as COUNT(1)]\n" +
+			"     ├─ columns: [mytable.COUNT(1):0!null->COUNT(1):0]\n" +
 			"     └─ table_count(mytable) as COUNT(1)\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
@@ -722,7 +902,7 @@ From xy;`,
 	{
 		Query: `select count(*) from keyless`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*)]\n" +
+			" ├─ columns: [count(1):0!null->count(*):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint))\n" +
 			"     ├─ group: \n" +
@@ -753,9 +933,9 @@ From xy;`,
 	{
 		Query: `select count(*) from xy`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*)]\n" +
+			" ├─ columns: [count(1):0!null->count(*):0]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy.COUNT(1):0!null as COUNT(1)]\n" +
+			"     ├─ columns: [xy.COUNT(1):0!null->COUNT(1):0]\n" +
 			"     └─ table_count(xy) as COUNT(1)\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
@@ -776,7 +956,7 @@ From xy;`,
 		ExpectedPlan: "Project\n" +
 			" ├─ columns: [count(1):0!null]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [mytable.COUNT(1):0!null as COUNT(1)]\n" +
+			"     ├─ columns: [mytable.COUNT(1):0!null->COUNT(1):0]\n" +
 			"     └─ table_count(mytable) as COUNT(1)\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
@@ -797,7 +977,7 @@ From xy;`,
 		ExpectedPlan: "Project\n" +
 			" ├─ columns: [count(1):0!null]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy.COUNT(1):0!null as COUNT(1)]\n" +
+			"     ├─ columns: [xy.COUNT(1):0!null->COUNT(1):0]\n" +
 			"     └─ table_count(xy) as COUNT(1)\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
@@ -867,9 +1047,9 @@ From xy;`,
 			" ├─ colSet: (4)\n" +
 			" ├─ tableId: 2\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [count(1):0!null as count(*)]\n" +
+			"     ├─ columns: [count(1):0!null->count(*):0]\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [xy.COUNT(1):0!null as COUNT(1)]\n" +
+			"         ├─ columns: [xy.COUNT(1):0!null->COUNT(1):0]\n" +
 			"         └─ table_count(xy) as COUNT(1)\n" +
 			"",
 		ExpectedEstimates: "SubqueryAlias\n" +
@@ -902,19 +1082,19 @@ From xy;`,
 			" │   ├─ cacheable: true\n" +
 			" │   ├─ alias-string: select count(*) from xy\n" +
 			" │   └─ Project\n" +
-			" │       ├─ columns: [count(1):1!null as count(*)]\n" +
+			" │       ├─ columns: [count(1):1!null->count(*):0]\n" +
 			" │       └─ Project\n" +
-			" │           ├─ columns: [xy.COUNT(1):1!null as COUNT(1)]\n" +
+			" │           ├─ columns: [xy.COUNT(1):1!null->COUNT(1):0]\n" +
 			" │           └─ table_count(xy) as COUNT(1)\n" +
-			" │   as (select count(*) from xy), Subquery\n" +
+			" │  ->(select count(*) from xy):0, Subquery\n" +
 			" │   ├─ cacheable: true\n" +
 			" │   ├─ alias-string: select count(*) from uv\n" +
 			" │   └─ Project\n" +
-			" │       ├─ columns: [count(1):1!null as count(*)]\n" +
+			" │       ├─ columns: [count(1):1!null->count(*):0]\n" +
 			" │       └─ Project\n" +
-			" │           ├─ columns: [uv.COUNT(1):1!null as COUNT(1)]\n" +
+			" │           ├─ columns: [uv.COUNT(1):1!null->COUNT(1):0]\n" +
 			" │           └─ table_count(uv) as COUNT(1)\n" +
-			" │   as (select count(*) from uv)]\n" +
+			" │  ->(select count(*) from uv):0]\n" +
 			" └─ Project\n" +
 			"     ├─ columns: [dual.:0!null]\n" +
 			"     └─ ProcessTable\n" +
@@ -972,21 +1152,21 @@ From xy;`,
 			" │   ├─ cacheable: true\n" +
 			" │   ├─ alias-string: select count(*) from xy\n" +
 			" │   └─ Project\n" +
-			" │       ├─ columns: [count(1):1!null as count(*)]\n" +
+			" │       ├─ columns: [count(1):1!null->count(*):0]\n" +
 			" │       └─ Project\n" +
-			" │           ├─ columns: [xy.COUNT(1):1!null as COUNT(1)]\n" +
+			" │           ├─ columns: [xy.COUNT(1):1!null->COUNT(1):0]\n" +
 			" │           └─ table_count(xy) as COUNT(1)\n" +
-			" │   as (select count(*) from xy), Subquery\n" +
+			" │  ->(select count(*) from xy):0, Subquery\n" +
 			" │   ├─ cacheable: true\n" +
 			" │   ├─ alias-string: select count(*) from uv\n" +
 			" │   └─ Project\n" +
-			" │       ├─ columns: [count(1):1!null as count(*)]\n" +
+			" │       ├─ columns: [count(1):1!null->count(*):0]\n" +
 			" │       └─ Project\n" +
-			" │           ├─ columns: [uv.COUNT(1):1!null as COUNT(1)]\n" +
+			" │           ├─ columns: [uv.COUNT(1):1!null->COUNT(1):0]\n" +
 			" │           └─ table_count(uv) as COUNT(1)\n" +
-			" │   as (select count(*) from uv), count(1):0!null as count(*)]\n" +
+			" │  ->(select count(*) from uv):0, count(1):0!null->count(*):0]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [ab.COUNT(1):0!null as COUNT(1)]\n" +
+			"     ├─ columns: [ab.COUNT(1):0!null->COUNT(1):0]\n" +
 			"     └─ table_count(ab) as COUNT(1)\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
@@ -1043,7 +1223,7 @@ WHERE
  s_i_id=ol_i_id AND
  s_quantity < 15;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [countdistinct([stock1.s_i_id]):0!null as COUNT(DISTINCT (s_i_id))]\n" +
+			" ├─ columns: [countdistinct([stock1.s_i_id]):0!null->COUNT(DISTINCT (s_i_id)):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNTDISTINCT([stock1.s_i_id])\n" +
 			"     ├─ group: \n" +
@@ -1260,15 +1440,19 @@ where
 			" ├─ columns: [style.assetId:1]\n" +
 			" └─ LookupJoin\n" +
 			"     ├─ LookupJoin\n" +
-			"     │   ├─ TableAlias(style)\n" +
-			"     │   │   └─ IndexedTableAccess(asset)\n" +
-			"     │   │       ├─ index: [asset.orgId,asset.name,asset.val]\n" +
-			"     │   │       ├─ static: [{[org1, org1], [style, style], [curve, curve]}]\n" +
-			"     │   │       ├─ colSet: (1-5)\n" +
-			"     │   │       ├─ tableId: 1\n" +
-			"     │   │       └─ Table\n" +
-			"     │   │           ├─ name: asset\n" +
-			"     │   │           └─ columns: [orgid assetid name val]\n" +
+			"     │   ├─ Filter\n" +
+			"     │   │   ├─ Eq\n" +
+			"     │   │   │   ├─ style.val:3\n" +
+			"     │   │   │   └─ curve (longtext)\n" +
+			"     │   │   └─ TableAlias(style)\n" +
+			"     │   │       └─ IndexedTableAccess(asset)\n" +
+			"     │   │           ├─ index: [asset.orgId,asset.name,asset.assetId]\n" +
+			"     │   │           ├─ static: [{[org1, org1], [style, style], [NULL, ∞)}]\n" +
+			"     │   │           ├─ colSet: (1-5)\n" +
+			"     │   │           ├─ tableId: 1\n" +
+			"     │   │           └─ Table\n" +
+			"     │   │               ├─ name: asset\n" +
+			"     │   │               └─ columns: [orgid assetid name val]\n" +
 			"     │   └─ Filter\n" +
 			"     │       ├─ AND\n" +
 			"     │       │   ├─ AND\n" +
@@ -1314,13 +1498,15 @@ where
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [style.assetId]\n" +
-			" └─ LookupJoin (estimated cost=19.800 rows=6)\n" +
-			"     ├─ LookupJoin (estimated cost=19.800 rows=6)\n" +
-			"     │   ├─ TableAlias(style)\n" +
-			"     │   │   └─ IndexedTableAccess(asset)\n" +
-			"     │   │       ├─ index: [asset.orgId,asset.name,asset.val]\n" +
-			"     │   │       ├─ filters: [{[org1, org1], [style, style], [curve, curve]}]\n" +
-			"     │   │       └─ columns: [orgid assetid name val]\n" +
+			" └─ LookupJoin (estimated cost=16.500 rows=5)\n" +
+			"     ├─ LookupJoin (estimated cost=16.500 rows=5)\n" +
+			"     │   ├─ Filter\n" +
+			"     │   │   ├─ (style.val = 'curve')\n" +
+			"     │   │   └─ TableAlias(style)\n" +
+			"     │   │       └─ IndexedTableAccess(asset)\n" +
+			"     │   │           ├─ index: [asset.orgId,asset.name,asset.assetId]\n" +
+			"     │   │           ├─ filters: [{[org1, org1], [style, style], [NULL, ∞)}]\n" +
+			"     │   │           └─ columns: [orgid assetid name val]\n" +
 			"     │   └─ Filter\n" +
 			"     │       ├─ (((dimension.val = 'wide') AND (dimension.name = 'dimension')) AND (dimension.orgId = 'org1'))\n" +
 			"     │       └─ TableAlias(dimension)\n" +
@@ -1338,13 +1524,15 @@ where
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [style.assetId]\n" +
-			" └─ LookupJoin (estimated cost=19.800 rows=6) (actual rows=1 loops=1)\n" +
-			"     ├─ LookupJoin (estimated cost=19.800 rows=6) (actual rows=1 loops=1)\n" +
-			"     │   ├─ TableAlias(style)\n" +
-			"     │   │   └─ IndexedTableAccess(asset)\n" +
-			"     │   │       ├─ index: [asset.orgId,asset.name,asset.val]\n" +
-			"     │   │       ├─ filters: [{[org1, org1], [style, style], [curve, curve]}]\n" +
-			"     │   │       └─ columns: [orgid assetid name val]\n" +
+			" └─ LookupJoin (estimated cost=16.500 rows=5) (actual rows=1 loops=1)\n" +
+			"     ├─ LookupJoin (estimated cost=16.500 rows=5) (actual rows=1 loops=1)\n" +
+			"     │   ├─ Filter\n" +
+			"     │   │   ├─ (style.val = 'curve')\n" +
+			"     │   │   └─ TableAlias(style)\n" +
+			"     │   │       └─ IndexedTableAccess(asset)\n" +
+			"     │   │           ├─ index: [asset.orgId,asset.name,asset.assetId]\n" +
+			"     │   │           ├─ filters: [{[org1, org1], [style, style], [NULL, ∞)}]\n" +
+			"     │   │           └─ columns: [orgid assetid name val]\n" +
 			"     │   └─ Filter\n" +
 			"     │       ├─ (((dimension.val = 'wide') AND (dimension.name = 'dimension')) AND (dimension.orgId = 'org1'))\n" +
 			"     │       └─ TableAlias(dimension)\n" +
@@ -1397,7 +1585,7 @@ where
 	{
 		Query: `SELECT col1->'$.key1' from (SELECT JSON_OBJECT('key1', 1, 'key2', 'abc')) as dt(col1);`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [json_extract(dt.col1, '$.key1') as col1->'$.key1']\n" +
+			" ├─ columns: [json_extract(dt.col1, '$.key1')->col1->'$.key1':0]\n" +
 			" └─ SubqueryAlias\n" +
 			"     ├─ name: dt\n" +
 			"     ├─ outerVisibility: false\n" +
@@ -1406,7 +1594,7 @@ where
 			"     ├─ colSet: (1)\n" +
 			"     ├─ tableId: 1\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [json_object('key1',1,'key2','abc') as JSON_OBJECT('key1', 1, 'key2', 'abc')]\n" +
+			"         ├─ columns: [json_object('key1',1,'key2','abc')->JSON_OBJECT('key1', 1, 'key2', 'abc')]\n" +
 			"         └─ Table\n" +
 			"             ├─ name: \n" +
 			"             ├─ columns: []\n" +
@@ -1441,7 +1629,7 @@ where
 	{
 		Query: `SELECT col1->>'$.key1' from (SELECT JSON_OBJECT('key1', 1, 'key2', 'abc')) as dt(col1);`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [json_unquote(json_extract(dt.col1, '$.key1')) as col1->>'$.key1']\n" +
+			" ├─ columns: [json_unquote(json_extract(dt.col1, '$.key1'))->col1->>'$.key1':0]\n" +
 			" └─ SubqueryAlias\n" +
 			"     ├─ name: dt\n" +
 			"     ├─ outerVisibility: false\n" +
@@ -1450,7 +1638,7 @@ where
 			"     ├─ colSet: (1)\n" +
 			"     ├─ tableId: 1\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [json_object('key1',1,'key2','abc') as JSON_OBJECT('key1', 1, 'key2', 'abc')]\n" +
+			"         ├─ columns: [json_object('key1',1,'key2','abc')->JSON_OBJECT('key1', 1, 'key2', 'abc')]\n" +
 			"         └─ Table\n" +
 			"             ├─ name: \n" +
 			"             ├─ columns: []\n" +
@@ -1495,7 +1683,7 @@ where
 			FROM included_parts
 			GROUP BY sub_part`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [included_parts.sub_part:1!null, sum(included_parts.quantity):0!null as total_quantity]\n" +
+			" ├─ columns: [included_parts.sub_part:1!null, sum(included_parts.quantity):0!null->total_quantity:0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: SUM(included_parts.quantity:2!null), included_parts.sub_part:0!null\n" +
 			"     ├─ group: included_parts.sub_part:0!null\n" +
@@ -1504,8 +1692,8 @@ where
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (7-9)\n" +
-			"         ├─ tableId: 3\n" +
+			"         ├─ colSet: (16-18)\n" +
+			"         ├─ tableId: 5\n" +
 			"         └─ RecursiveCTE\n" +
 			"             └─ Union all\n" +
 			"                 ├─ Project\n" +
@@ -1728,18 +1916,18 @@ Select * from (
 			" ├─ outerVisibility: false\n" +
 			" ├─ isLateral: false\n" +
 			" ├─ cacheable: true\n" +
-			" ├─ colSet: (7)\n" +
+			" ├─ colSet: (10)\n" +
 			" ├─ tableId: 7\n" +
 			" └─ Union distinct\n" +
 			"     ├─ Project\n" +
-			"     │   ├─ columns: [cte.s:0!null as s]\n" +
+			"     │   ├─ columns: [cte.s:0!null->s:0]\n" +
 			"     │   └─ SubqueryAlias\n" +
 			"     │       ├─ name: cte\n" +
 			"     │       ├─ outerVisibility: false\n" +
 			"     │       ├─ isLateral: false\n" +
 			"     │       ├─ cacheable: true\n" +
-			"     │       ├─ colSet: (2)\n" +
-			"     │       ├─ tableId: 1\n" +
+			"     │       ├─ colSet: (6)\n" +
+			"     │       ├─ tableId: 3\n" +
 			"     │       └─ RecursiveCTE\n" +
 			"     │           └─ Union distinct\n" +
 			"     │               ├─ Project\n" +
@@ -1765,7 +1953,7 @@ Select * from (
 			"         ├─ columns: [convert\n" +
 			"         │   ├─ type: signed\n" +
 			"         │   └─ xy.x:0!null\n" +
-			"         │   as x]\n" +
+			"         │  ->x:0]\n" +
 			"         └─ Project\n" +
 			"             ├─ columns: [xy.x:0!null]\n" +
 			"             └─ Filter\n" +
@@ -1783,8 +1971,8 @@ Select * from (
 			"                 │               ├─ outerVisibility: true\n" +
 			"                 │               ├─ isLateral: false\n" +
 			"                 │               ├─ cacheable: true\n" +
-			"                 │               ├─ colSet: (2)\n" +
-			"                 │               ├─ tableId: 1\n" +
+			"                 │               ├─ colSet: (9)\n" +
+			"                 │               ├─ tableId: 4\n" +
 			"                 │               └─ RecursiveCTE\n" +
 			"                 │                   └─ Union distinct\n" +
 			"                 │                       ├─ Project\n" +
@@ -1809,7 +1997,7 @@ Select * from (
 			"                 └─ Table\n" +
 			"                     ├─ name: xy\n" +
 			"                     ├─ columns: [x y]\n" +
-			"                     ├─ colSet: (5,6)\n" +
+			"                     ├─ colSet: (7,8)\n" +
 			"                     └─ tableId: 5\n" +
 			"",
 		ExpectedEstimates: "SubqueryAlias\n" +
@@ -1946,18 +2134,18 @@ Select * from (
 			" ├─ outerVisibility: false\n" +
 			" ├─ isLateral: false\n" +
 			" ├─ cacheable: true\n" +
-			" ├─ colSet: (7)\n" +
+			" ├─ colSet: (10)\n" +
 			" ├─ tableId: 7\n" +
 			" └─ Union distinct\n" +
 			"     ├─ Project\n" +
-			"     │   ├─ columns: [cte.s:0!null as s]\n" +
+			"     │   ├─ columns: [cte.s:0!null->s:0]\n" +
 			"     │   └─ SubqueryAlias\n" +
 			"     │       ├─ name: cte\n" +
 			"     │       ├─ outerVisibility: false\n" +
 			"     │       ├─ isLateral: false\n" +
 			"     │       ├─ cacheable: true\n" +
-			"     │       ├─ colSet: (2)\n" +
-			"     │       ├─ tableId: 1\n" +
+			"     │       ├─ colSet: (6)\n" +
+			"     │       ├─ tableId: 3\n" +
 			"     │       └─ RecursiveCTE\n" +
 			"     │           └─ Union distinct\n" +
 			"     │               ├─ Project\n" +
@@ -1983,7 +2171,7 @@ Select * from (
 			"         ├─ columns: [convert\n" +
 			"         │   ├─ type: signed\n" +
 			"         │   └─ xy.x:0!null\n" +
-			"         │   as x]\n" +
+			"         │  ->x:0]\n" +
 			"         └─ Project\n" +
 			"             ├─ columns: [xy.x:1!null]\n" +
 			"             └─ LookupJoin\n" +
@@ -1996,8 +2184,8 @@ Select * from (
 			"                 │       ├─ outerVisibility: false\n" +
 			"                 │       ├─ isLateral: false\n" +
 			"                 │       ├─ cacheable: true\n" +
-			"                 │       ├─ colSet: (2)\n" +
-			"                 │       ├─ tableId: 1\n" +
+			"                 │       ├─ colSet: (9)\n" +
+			"                 │       ├─ tableId: 4\n" +
 			"                 │       └─ RecursiveCTE\n" +
 			"                 │           └─ Union distinct\n" +
 			"                 │               ├─ Project\n" +
@@ -2022,7 +2210,7 @@ Select * from (
 			"                 └─ IndexedTableAccess(xy)\n" +
 			"                     ├─ index: [xy.x]\n" +
 			"                     ├─ keys: [cte.s:0!null]\n" +
-			"                     ├─ colSet: (5,6)\n" +
+			"                     ├─ colSet: (7,8)\n" +
 			"                     ├─ tableId: 5\n" +
 			"                     └─ Table\n" +
 			"                         ├─ name: xy\n" +
@@ -2359,7 +2547,7 @@ Select * from (
 			"     │           │           └─ Table\n" +
 			"     │           │               ├─ name: uv\n" +
 			"     │           │               └─ columns: [u]\n" +
-			"     │           │   as (select u from uv where u = sq.p)]\n" +
+			"     │           │  ->(select u from uv where u = sq.p):0]\n" +
 			"     │           └─ SubqueryAlias\n" +
 			"     │               ├─ name: sq\n" +
 			"     │               ├─ outerVisibility: true\n" +
@@ -3281,31 +3469,31 @@ Select * from (
 			" │               └─ Table\n" +
 			" │                   ├─ name: uv\n" +
 			" │                   └─ columns: [u]\n" +
-			" │   as is_one]\n" +
-			" └─ Sort(xy.y:1 ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [xy.x:2!null, xy.y:3, uv.u:0!null, uv.v:1, Subquery\n" +
-			"         │   ├─ cacheable: false\n" +
-			"         │   ├─ alias-string: select 1 from uv where y = 1 and u = x\n" +
-			"         │   └─ Project\n" +
-			"         │       ├─ columns: [1 (tinyint)]\n" +
-			"         │       └─ Filter\n" +
-			"         │           ├─ AND\n" +
-			"         │           │   ├─ Eq\n" +
-			"         │           │   │   ├─ xy.y:3\n" +
-			"         │           │   │   └─ 1 (int)\n" +
-			"         │           │   └─ Eq\n" +
-			"         │           │       ├─ uv.u:4!null\n" +
-			"         │           │       └─ xy.x:2!null\n" +
-			"         │           └─ IndexedTableAccess(uv)\n" +
-			"         │               ├─ index: [uv.u]\n" +
-			"         │               ├─ keys: [xy.x:2!null]\n" +
-			"         │               ├─ colSet: (5,6)\n" +
-			"         │               ├─ tableId: 3\n" +
-			"         │               └─ Table\n" +
-			"         │                   ├─ name: uv\n" +
-			"         │                   └─ columns: [u]\n" +
-			"         │   as is_one]\n" +
+			" │  ->is_one:0]\n" +
+			" └─ Project\n" +
+			"     ├─ columns: [xy.x:2!null, xy.y:3, uv.u:0!null, uv.v:1, Subquery\n" +
+			"     │   ├─ cacheable: false\n" +
+			"     │   ├─ alias-string: select 1 from uv where y = 1 and u = x\n" +
+			"     │   └─ Project\n" +
+			"     │       ├─ columns: [1 (tinyint)]\n" +
+			"     │       └─ Filter\n" +
+			"     │           ├─ AND\n" +
+			"     │           │   ├─ Eq\n" +
+			"     │           │   │   ├─ xy.y:3\n" +
+			"     │           │   │   └─ 1 (int)\n" +
+			"     │           │   └─ Eq\n" +
+			"     │           │       ├─ uv.u:4!null\n" +
+			"     │           │       └─ xy.x:2!null\n" +
+			"     │           └─ IndexedTableAccess(uv)\n" +
+			"     │               ├─ index: [uv.u]\n" +
+			"     │               ├─ keys: [xy.x:2!null]\n" +
+			"     │               ├─ colSet: (5,6)\n" +
+			"     │               ├─ tableId: 3\n" +
+			"     │               └─ Table\n" +
+			"     │                   ├─ name: uv\n" +
+			"     │                   └─ columns: [u]\n" +
+			"     │  ->is_one:0]\n" +
+			"     └─ Sort(xy.y:3 ASC nullsFirst)\n" +
 			"         └─ LookupJoin\n" +
 			"             ├─ ProcessTable\n" +
 			"             │   └─ Table\n" +
@@ -3332,19 +3520,19 @@ Select * from (
 			" │               ├─ columns: [u]\n" +
 			" │               └─ keys: xy.x\n" +
 			" │   as is_one]\n" +
-			" └─ Sort(xy.y ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [xy.x, xy.y, uv.u, uv.v, Subquery\n" +
-			"         │   ├─ cacheable: false\n" +
-			"         │   └─ Project\n" +
-			"         │       ├─ columns: [1]\n" +
-			"         │       └─ Filter\n" +
-			"         │           ├─ ((xy.y = 1) AND (uv.u = xy.x))\n" +
-			"         │           └─ IndexedTableAccess(uv)\n" +
-			"         │               ├─ index: [uv.u]\n" +
-			"         │               ├─ columns: [u]\n" +
-			"         │               └─ keys: xy.x\n" +
-			"         │   as is_one]\n" +
+			" └─ Project\n" +
+			"     ├─ columns: [xy.x, xy.y, uv.u, uv.v, Subquery\n" +
+			"     │   ├─ cacheable: false\n" +
+			"     │   └─ Project\n" +
+			"     │       ├─ columns: [1]\n" +
+			"     │       └─ Filter\n" +
+			"     │           ├─ ((xy.y = 1) AND (uv.u = xy.x))\n" +
+			"     │           └─ IndexedTableAccess(uv)\n" +
+			"     │               ├─ index: [uv.u]\n" +
+			"     │               ├─ columns: [u]\n" +
+			"     │               └─ keys: xy.x\n" +
+			"     │   as is_one]\n" +
+			"     └─ Sort(xy.y ASC)\n" +
 			"         └─ LookupJoin\n" +
 			"             ├─ Table\n" +
 			"             │   └─ name: uv\n" +
@@ -3364,19 +3552,19 @@ Select * from (
 			" │               ├─ columns: [u]\n" +
 			" │               └─ keys: xy.x\n" +
 			" │   as is_one]\n" +
-			" └─ Sort(xy.y ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [xy.x, xy.y, uv.u, uv.v, Subquery\n" +
-			"         │   ├─ cacheable: false\n" +
-			"         │   └─ Project\n" +
-			"         │       ├─ columns: [1]\n" +
-			"         │       └─ Filter\n" +
-			"         │           ├─ ((xy.y = 1) AND (uv.u = xy.x))\n" +
-			"         │           └─ IndexedTableAccess(uv)\n" +
-			"         │               ├─ index: [uv.u]\n" +
-			"         │               ├─ columns: [u]\n" +
-			"         │               └─ keys: xy.x\n" +
-			"         │   as is_one]\n" +
+			" └─ Project\n" +
+			"     ├─ columns: [xy.x, xy.y, uv.u, uv.v, Subquery\n" +
+			"     │   ├─ cacheable: false\n" +
+			"     │   └─ Project\n" +
+			"     │       ├─ columns: [1]\n" +
+			"     │       └─ Filter\n" +
+			"     │           ├─ ((xy.y = 1) AND (uv.u = xy.x))\n" +
+			"     │           └─ IndexedTableAccess(uv)\n" +
+			"     │               ├─ index: [uv.u]\n" +
+			"     │               ├─ columns: [u]\n" +
+			"     │               └─ keys: xy.x\n" +
+			"     │   as is_one]\n" +
+			"     └─ Sort(xy.y ASC)\n" +
 			"         └─ LookupJoin\n" +
 			"             ├─ Table\n" +
 			"             │   └─ name: uv\n" +
@@ -3410,7 +3598,7 @@ Select * from (
 			"         │               ├─ columns: []\n" +
 			"         │               ├─ colSet: ()\n" +
 			"         │               └─ tableId: 0\n" +
-			"         │   as is_one]\n" +
+			"         │  ->is_one:0]\n" +
 			"         └─ Project\n" +
 			"             ├─ columns: [xy.x:2!null, xy.y:3, uv.u:0!null, uv.v:1, Subquery\n" +
 			"             │   ├─ cacheable: false\n" +
@@ -3426,7 +3614,7 @@ Select * from (
 			"             │               ├─ columns: []\n" +
 			"             │               ├─ colSet: ()\n" +
 			"             │               └─ tableId: 0\n" +
-			"             │   as is_one]\n" +
+			"             │  ->is_one:0]\n" +
 			"             └─ LookupJoin\n" +
 			"                 ├─ Table\n" +
 			"                 │   ├─ name: uv\n" +
@@ -3526,7 +3714,7 @@ Select * from (
 			" │               ├─ columns: []\n" +
 			" │               ├─ colSet: ()\n" +
 			" │               └─ tableId: 0\n" +
-			" │   as is_one]\n" +
+			" │  ->is_one:0]\n" +
 			" └─ Project\n" +
 			"     ├─ columns: [xy.x:2!null, xy.y:3, uv.u:0!null, uv.v:1, Subquery\n" +
 			"     │   ├─ cacheable: false\n" +
@@ -3542,7 +3730,7 @@ Select * from (
 			"     │               ├─ columns: []\n" +
 			"     │               ├─ colSet: ()\n" +
 			"     │               └─ tableId: 0\n" +
-			"     │   as is_one]\n" +
+			"     │  ->is_one:0]\n" +
 			"     └─ LookupJoin\n" +
 			"         ├─ ProcessTable\n" +
 			"         │   └─ Table\n" +
@@ -3670,12 +3858,12 @@ Select * from (
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (4)\n" +
-			"     ├─ tableId: 2\n" +
+			"     ├─ colSet: (8)\n" +
+			"     ├─ tableId: 4\n" +
 			"     └─ RecursiveCTE\n" +
 			"         └─ Union distinct\n" +
 			"             ├─ Project\n" +
-			"             │   ├─ columns: [bus_routes.origin:0!null as dst]\n" +
+			"             │   ├─ columns: [bus_routes.origin:0!null->dst:0]\n" +
 			"             │   └─ IndexedTableAccess(bus_routes)\n" +
 			"             │       ├─ index: [bus_routes.origin,bus_routes.dst]\n" +
 			"             │       ├─ static: [{[New York, New York], [NULL, ∞)}]\n" +
@@ -3686,19 +3874,16 @@ Select * from (
 			"             │           └─ columns: [origin]\n" +
 			"             └─ Project\n" +
 			"                 ├─ columns: [bus_routes.dst:2!null]\n" +
-			"                 └─ HashJoin\n" +
+			"                 └─ InnerJoin\n" +
 			"                     ├─ Eq\n" +
 			"                     │   ├─ concat(bus_dst.dst:0!null,aa (longtext))\n" +
 			"                     │   └─ concat(bus_routes.origin:1!null,aa (longtext))\n" +
 			"                     ├─ RecursiveTable(bus_dst)\n" +
-			"                     └─ HashLookup\n" +
-			"                         ├─ left-key: TUPLE(concat(bus_dst.dst:0!null,aa (longtext)))\n" +
-			"                         ├─ right-key: TUPLE(concat(bus_routes.origin:0!null,aa (longtext)))\n" +
-			"                         └─ Table\n" +
-			"                             ├─ name: bus_routes\n" +
-			"                             ├─ columns: [origin dst]\n" +
-			"                             ├─ colSet: (5,6)\n" +
-			"                             └─ tableId: 4\n" +
+			"                     └─ Table\n" +
+			"                         ├─ name: bus_routes\n" +
+			"                         ├─ columns: [origin dst]\n" +
+			"                         ├─ colSet: (5,6)\n" +
+			"                         └─ tableId: 4\n" +
 			"",
 		ExpectedEstimates: "Sort(bus_dst.dst ASC)\n" +
 			" └─ SubqueryAlias\n" +
@@ -3716,15 +3901,12 @@ Select * from (
 			"             │       └─ columns: [origin]\n" +
 			"             └─ Project\n" +
 			"                 ├─ columns: [bus_routes.dst]\n" +
-			"                 └─ HashJoin\n" +
+			"                 └─ InnerJoin\n" +
 			"                     ├─ (concat(bus_dst.dst,'aa') = concat(bus_routes.origin,'aa'))\n" +
 			"                     ├─ RecursiveTable(bus_dst)\n" +
-			"                     └─ HashLookup\n" +
-			"                         ├─ left-key: (concat(bus_dst.dst,'aa'))\n" +
-			"                         ├─ right-key: (concat(bus_routes.origin,'aa'))\n" +
-			"                         └─ Table\n" +
-			"                             ├─ name: bus_routes\n" +
-			"                             └─ columns: [origin dst]\n" +
+			"                     └─ Table\n" +
+			"                         ├─ name: bus_routes\n" +
+			"                         └─ columns: [origin dst]\n" +
 			"",
 		ExpectedAnalysis: "Sort(bus_dst.dst ASC)\n" +
 			" └─ SubqueryAlias\n" +
@@ -3742,15 +3924,12 @@ Select * from (
 			"             │       └─ columns: [origin]\n" +
 			"             └─ Project\n" +
 			"                 ├─ columns: [bus_routes.dst]\n" +
-			"                 └─ HashJoin\n" +
+			"                 └─ InnerJoin\n" +
 			"                     ├─ (concat(bus_dst.dst,'aa') = concat(bus_routes.origin,'aa'))\n" +
 			"                     ├─ RecursiveTable(bus_dst)\n" +
-			"                     └─ HashLookup\n" +
-			"                         ├─ left-key: (concat(bus_dst.dst,'aa'))\n" +
-			"                         ├─ right-key: (concat(bus_routes.origin,'aa'))\n" +
-			"                         └─ Table\n" +
-			"                             ├─ name: bus_routes\n" +
-			"                             └─ columns: [origin dst]\n" +
+			"                     └─ Table\n" +
+			"                         ├─ name: bus_routes\n" +
+			"                         └─ columns: [origin dst]\n" +
 			"",
 	},
 	{
@@ -3778,8 +3957,8 @@ Select * from (
 			"                         ├─ outerVisibility: false\n" +
 			"                         ├─ isLateral: false\n" +
 			"                         ├─ cacheable: true\n" +
-			"                         ├─ colSet: (9,10)\n" +
-			"                         ├─ tableId: 6\n" +
+			"                         ├─ colSet: (15,16)\n" +
+			"                         ├─ tableId: 7\n" +
 			"                         └─ Project\n" +
 			"                             ├─ columns: [cte2.u:1!null, cte2.v:2]\n" +
 			"                             └─ HashJoin\n" +
@@ -3789,7 +3968,7 @@ Select * from (
 			"                                 ├─ Table\n" +
 			"                                 │   ├─ name: ab\n" +
 			"                                 │   ├─ columns: [b]\n" +
-			"                                 │   ├─ colSet: (7,8)\n" +
+			"                                 │   ├─ colSet: (9,10)\n" +
 			"                                 │   └─ tableId: 5\n" +
 			"                                 └─ HashLookup\n" +
 			"                                     ├─ left-key: TUPLE(ab.b:0)\n" +
@@ -3799,8 +3978,8 @@ Select * from (
 			"                                         ├─ outerVisibility: false\n" +
 			"                                         ├─ isLateral: false\n" +
 			"                                         ├─ cacheable: true\n" +
-			"                                         ├─ colSet: (5,6)\n" +
-			"                                         ├─ tableId: 3\n" +
+			"                                         ├─ colSet: (7,8)\n" +
+			"                                         ├─ tableId: 4\n" +
 			"                                         └─ Project\n" +
 			"                                             ├─ columns: [uv.u:1!null, uv.v:2]\n" +
 			"                                             └─ InnerJoin\n" +
@@ -3917,8 +4096,8 @@ Select * from (
 	{
 		Query: `select i+0.0/(lag(i) over (order by s)) from mytable order by 1;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [(mytable.i:1!null + (0 (decimal(2,1)) / lag(mytable.i, 1) over ( order by mytable.s asc):0)) as i+0.0/(lag(i) over (order by s))]\n" +
-			" └─ Sort((mytable.i:1!null + (0 (decimal(2,1)) / lag(mytable.i, 1) over ( order by mytable.s asc):0)) as i+0.0/(lag(i) over (order by s)) ASC nullsFirst)\n" +
+			" ├─ columns: [(mytable.i:1!null + (0 (decimal(2,1)) / lag(mytable.i, 1) over ( order by mytable.s asc):0))->i+0.0/(lag(i) over (order by s)):0]\n" +
+			" └─ Sort((mytable.i:1!null + (0 (decimal(2,1)) / lag(mytable.i, 1) over ( order by mytable.s asc):0))->i+0.0/(lag(i) over (order by s)):0 ASC nullsFirst)\n" +
 			"     └─ Window\n" +
 			"         ├─ lag(mytable.i, 1) over ( order by mytable.s ASC)\n" +
 			"         ├─ mytable.i:0!null\n" +
@@ -3947,8 +4126,8 @@ Select * from (
 	{
 		Query: `select f64/f32, f32/(lag(i) over (order by f64)) from floattable order by 1,2;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [(floattable.f64:1!null / floattable.f32:2!null) as f64/f32, (floattable.f32:2!null / lag(floattable.i, 1) over ( order by floattable.f64 asc):0) as f32/(lag(i) over (order by f64))]\n" +
-			" └─ Sort((floattable.f64:1!null / floattable.f32:2!null) as f64/f32 ASC nullsFirst, (floattable.f32:2!null / lag(floattable.i, 1) over ( order by floattable.f64 asc):0) as f32/(lag(i) over (order by f64)) ASC nullsFirst)\n" +
+			" ├─ columns: [(floattable.f64:1!null / floattable.f32:2!null)->f64/f32:0, (floattable.f32:2!null / lag(floattable.i, 1) over ( order by floattable.f64 asc):0)->f32/(lag(i) over (order by f64)):0]\n" +
+			" └─ Sort((floattable.f64:1!null / floattable.f32:2!null)->f64/f32:0 ASC nullsFirst, (floattable.f32:2!null / lag(floattable.i, 1) over ( order by floattable.f64 asc):0)->f32/(lag(i) over (order by f64)):0 ASC nullsFirst)\n" +
 			"     └─ Window\n" +
 			"         ├─ lag(floattable.i, 1) over ( order by floattable.f64 ASC)\n" +
 			"         ├─ floattable.f64:2!null\n" +
@@ -4380,7 +4559,7 @@ Select * from (
 			" │                   └─ Table\n" +
 			" │                       ├─ name: ab\n" +
 			" │                       └─ columns: [a b]\n" +
-			" │   as s]\n" +
+			" │  ->s:0]\n" +
 			" └─ Project\n" +
 			"     ├─ columns: [xy.x:0!null, xy.y:1, InSubquery\n" +
 			"     │   ├─ left: 1 (tinyint)\n" +
@@ -4409,7 +4588,7 @@ Select * from (
 			"     │                   └─ Table\n" +
 			"     │                       ├─ name: ab\n" +
 			"     │                       └─ columns: [a b]\n" +
-			"     │   as s]\n" +
+			"     │  ->s:0]\n" +
 			"     └─ ProcessTable\n" +
 			"         └─ Table\n" +
 			"             ├─ name: xy\n" +
@@ -4505,8 +4684,8 @@ Select * from (
 			" ├─ outerVisibility: false\n" +
 			" ├─ isLateral: false\n" +
 			" ├─ cacheable: true\n" +
-			" ├─ colSet: (3,4)\n" +
-			" ├─ tableId: 2\n" +
+			" ├─ colSet: (5,6)\n" +
+			" ├─ tableId: 3\n" +
 			" └─ Table\n" +
 			"     ├─ name: ab\n" +
 			"     ├─ columns: [a b]\n" +
@@ -4695,7 +4874,7 @@ Select * from (
 	{
 		Query: `SELECT count(*), i, concat(i, i), 123, 'abc', concat('abc', 'def') FROM emptytable;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*), emptytable.i:1!null, concat(emptytable.i:1!null,emptytable.i:1!null) as concat(i, i), 123 (tinyint), abc (longtext), concat(abc (longtext),def (longtext)) as concat('abc', 'def')]\n" +
+			" ├─ columns: [count(1):0!null->count(*):0, emptytable.i:1!null, concat(emptytable.i:1!null,emptytable.i:1!null)->concat(i, i):0, 123 (tinyint), abc (longtext), concat('abc','def')->concat('abc', 'def')]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint)), emptytable.i:0!null\n" +
 			"     ├─ group: \n" +
@@ -4726,7 +4905,7 @@ Select * from (
 	{
 		Query: `SELECT count(*), i, concat(i, i), 123, 'abc', concat('abc', 'def') FROM mytable where false;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*), mytable.i:1!null, concat(mytable.i:1!null,mytable.i:1!null) as concat(i, i), 123 (tinyint), abc (longtext), concat(abc (longtext),def (longtext)) as concat('abc', 'def')]\n" +
+			" ├─ columns: [count(1):0!null->count(*):0, mytable.i:1!null, concat(mytable.i:1!null,mytable.i:1!null)->concat(i, i):0, 123 (tinyint), abc (longtext), concat('abc','def')->concat('abc', 'def')]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint)), mytable.i:0!null\n" +
 			"     ├─ group: \n" +
@@ -4750,7 +4929,7 @@ Select * from (
 	{
 		Query: `select count(*) cnt from ab where exists (select * from xy where x = a) group by a`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as cnt]\n" +
+			" ├─ columns: [count(1):0!null->cnt:0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint))\n" +
 			"     ├─ group: ab.a:0!null\n" +
@@ -4834,9 +5013,9 @@ Select * from (
 			"     │   ├─ colSet: (12,13)\n" +
 			"     │   ├─ tableId: 3\n" +
 			"     │   └─ Project\n" +
-			"     │       ├─ columns: [count(1):0!null as u, 123 (tinyint) as v]\n" +
+			"     │       ├─ columns: [count(1):0!null->u:0, 123 (tinyint)->v:11]\n" +
 			"     │       └─ Project\n" +
-			"     │           ├─ columns: [emptytable.COUNT(1):0!null as COUNT(1)]\n" +
+			"     │           ├─ columns: [emptytable.COUNT(1):0!null->COUNT(1):0]\n" +
 			"     │           └─ table_count(emptytable) as COUNT(1)\n" +
 			"     └─ HashLookup\n" +
 			"         ├─ left-key: TUPLE(uv.u:0!null)\n" +
@@ -4905,7 +5084,7 @@ Select * from (
 			"     │   ├─ colSet: (12,13)\n" +
 			"     │   ├─ tableId: 3\n" +
 			"     │   └─ Project\n" +
-			"     │       ├─ columns: [count(1):0!null as u, 123 (tinyint) as v]\n" +
+			"     │       ├─ columns: [count(1):0!null->u:0, 123 (tinyint)->v:11]\n" +
 			"     │       └─ GroupBy\n" +
 			"     │           ├─ select: COUNT(1 (bigint))\n" +
 			"     │           ├─ group: \n" +
@@ -4974,9 +5153,9 @@ Select * from (
 			"     │       ├─ cacheable: true\n" +
 			"     │       ├─ alias-string: select count(*) u, 123 v from emptytable\n" +
 			"     │       └─ Project\n" +
-			"     │           ├─ columns: [count(1):6!null as u, 123 (tinyint) as v]\n" +
+			"     │           ├─ columns: [count(1):6!null->u:0, 123 (tinyint)->v:11]\n" +
 			"     │           └─ Project\n" +
-			"     │               ├─ columns: [emptytable.COUNT(1):6!null as COUNT(1)]\n" +
+			"     │               ├─ columns: [emptytable.COUNT(1):6!null->COUNT(1):0]\n" +
 			"     │               └─ table_count(emptytable) as COUNT(1)\n" +
 			"     └─ ProcessTable\n" +
 			"         └─ Table\n" +
@@ -5025,7 +5204,7 @@ Select * from (
 			"     │       ├─ cacheable: true\n" +
 			"     │       ├─ alias-string: select count(*) u, 123 v from mytable where false\n" +
 			"     │       └─ Project\n" +
-			"     │           ├─ columns: [count(1):6!null as u, 123 (tinyint) as v]\n" +
+			"     │           ├─ columns: [count(1):6!null->u:0, 123 (tinyint)->v:11]\n" +
 			"     │           └─ GroupBy\n" +
 			"     │               ├─ select: COUNT(1 (bigint))\n" +
 			"     │               ├─ group: \n" +
@@ -5082,9 +5261,9 @@ Select * from (
 			"     │       ├─ colSet: (8,9)\n" +
 			"     │       ├─ tableId: 3\n" +
 			"     │       └─ Project\n" +
-			"     │           ├─ columns: [count(1):0!null as u, 123 (tinyint) as v]\n" +
+			"     │           ├─ columns: [count(1):0!null->u:0, 123 (tinyint)->v:7]\n" +
 			"     │           └─ Project\n" +
-			"     │               ├─ columns: [emptytable.COUNT(1):0!null as COUNT(1)]\n" +
+			"     │               ├─ columns: [emptytable.COUNT(1):0!null->COUNT(1):0]\n" +
 			"     │               └─ table_count(emptytable) as COUNT(1)\n" +
 			"     └─ HashLookup\n" +
 			"         ├─ left-key: TUPLE()\n" +
@@ -5138,7 +5317,7 @@ Select * from (
 	{
 		Query: `SELECT count(*), (SELECT i FROM mytable WHERE i = 1 group by i);`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*), Subquery\n" +
+			" ├─ columns: [count(1):0!null->count(*):0, Subquery\n" +
 			" │   ├─ cacheable: true\n" +
 			" │   ├─ alias-string: select i from mytable where i = 1 group by i\n" +
 			" │   └─ GroupBy\n" +
@@ -5152,7 +5331,7 @@ Select * from (
 			" │           └─ Table\n" +
 			" │               ├─ name: mytable\n" +
 			" │               └─ columns: [i]\n" +
-			" │   as (SELECT i FROM mytable WHERE i = 1 group by i)]\n" +
+			" │  ->(SELECT i FROM mytable WHERE i = 1 group by i):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint))\n" +
 			"     ├─ group: \n" +
@@ -5212,8 +5391,8 @@ Select * from (
 			"     │           ├─ outerVisibility: true\n" +
 			"     │           ├─ isLateral: false\n" +
 			"     │           ├─ cacheable: true\n" +
-			"     │           ├─ colSet: (3,4)\n" +
-			"     │           ├─ tableId: 2\n" +
+			"     │           ├─ colSet: (7,8)\n" +
+			"     │           ├─ tableId: 3\n" +
 			"     │           └─ Table\n" +
 			"     │               ├─ name: ab\n" +
 			"     │               ├─ columns: [a b]\n" +
@@ -6336,43 +6515,37 @@ inner join pq on true
 	{
 		Query: `SELECT pk1 AS one, pk2 AS two FROM two_pk ORDER BY pk1, pk2`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [two_pk.pk1:0!null as one, two_pk.pk2:1!null as two]\n" +
-			" └─ Project\n" +
-			"     ├─ columns: [two_pk.pk1:0!null, two_pk.pk2:1!null, two_pk.c1:2!null, two_pk.c2:3!null, two_pk.c3:4!null, two_pk.c4:5!null, two_pk.c5:6!null, two_pk.pk1:0!null as one, two_pk.pk2:1!null as two]\n" +
-			"     └─ IndexedTableAccess(two_pk)\n" +
-			"         ├─ index: [two_pk.pk1,two_pk.pk2]\n" +
-			"         ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"         ├─ colSet: (1-7)\n" +
-			"         ├─ tableId: 1\n" +
-			"         └─ Table\n" +
-			"             ├─ name: two_pk\n" +
-			"             └─ columns: [pk1 pk2 c1 c2 c3 c4 c5]\n" +
+			" ├─ columns: [two_pk.pk1:0!null->one:0, two_pk.pk2:1!null->two:0]\n" +
+			" └─ IndexedTableAccess(two_pk)\n" +
+			"     ├─ index: [two_pk.pk1,two_pk.pk2]\n" +
+			"     ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"     ├─ colSet: (1-7)\n" +
+			"     ├─ tableId: 1\n" +
+			"     └─ Table\n" +
+			"         ├─ name: two_pk\n" +
+			"         └─ columns: [pk1 pk2]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [two_pk.pk1 as one, two_pk.pk2 as two]\n" +
-			" └─ Project\n" +
-			"     ├─ columns: [two_pk.pk1, two_pk.pk2, two_pk.c1, two_pk.c2, two_pk.c3, two_pk.c4, two_pk.c5, two_pk.pk1 as one, two_pk.pk2 as two]\n" +
-			"     └─ IndexedTableAccess(two_pk)\n" +
-			"         ├─ index: [two_pk.pk1,two_pk.pk2]\n" +
-			"         ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"         └─ columns: [pk1 pk2 c1 c2 c3 c4 c5]\n" +
+			" └─ IndexedTableAccess(two_pk)\n" +
+			"     ├─ index: [two_pk.pk1,two_pk.pk2]\n" +
+			"     ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"     └─ columns: [pk1 pk2]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [two_pk.pk1 as one, two_pk.pk2 as two]\n" +
-			" └─ Project\n" +
-			"     ├─ columns: [two_pk.pk1, two_pk.pk2, two_pk.c1, two_pk.c2, two_pk.c3, two_pk.c4, two_pk.c5, two_pk.pk1 as one, two_pk.pk2 as two]\n" +
-			"     └─ IndexedTableAccess(two_pk)\n" +
-			"         ├─ index: [two_pk.pk1,two_pk.pk2]\n" +
-			"         ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"         └─ columns: [pk1 pk2 c1 c2 c3 c4 c5]\n" +
+			" └─ IndexedTableAccess(two_pk)\n" +
+			"     ├─ index: [two_pk.pk1,two_pk.pk2]\n" +
+			"     ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"     └─ columns: [pk1 pk2]\n" +
 			"",
 	},
 	{
 		Query: `SELECT pk1 AS one, pk2 AS two FROM two_pk ORDER BY one, two`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [two_pk.pk1:0!null as one, two_pk.pk2:1!null as two]\n" +
+			" ├─ columns: [two_pk.pk1:0!null->one:0, two_pk.pk2:1!null->two:0]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [two_pk.pk1:0!null, two_pk.pk2:1!null, two_pk.c1:2!null, two_pk.c2:3!null, two_pk.c3:4!null, two_pk.c4:5!null, two_pk.c5:6!null, two_pk.pk1:0!null as one, two_pk.pk2:1!null as two]\n" +
+			"     ├─ columns: [two_pk.pk1:0!null, two_pk.pk2:1!null, two_pk.c1:2!null, two_pk.c2:3!null, two_pk.c3:4!null, two_pk.c4:5!null, two_pk.c5:6!null, two_pk.pk1:0!null->one:0, two_pk.pk2:1!null->two:0]\n" +
 			"     └─ IndexedTableAccess(two_pk)\n" +
 			"         ├─ index: [two_pk.pk1,two_pk.pk2]\n" +
 			"         ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
@@ -6463,67 +6636,61 @@ inner join pq on true
 		Query: `select row_number() over (order by i desc), mytable.i as i2
 				from mytable join othertable on i = i2 order by 1`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [row_number() over ( order by mytable.i desc):0!null as row_number() over (order by i desc), mytable.i:1!null as i2]\n" +
-			" └─ Sort(row_number() over ( order by mytable.i desc):0!null as row_number() over (order by i desc) ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by mytable.i desc):0!null, mytable.i:1!null, mytable.i:1!null as i2]\n" +
-			"         └─ Window\n" +
-			"             ├─ row_number() over ( order by mytable.i DESC)\n" +
-			"             ├─ mytable.i:0!null\n" +
-			"             └─ MergeJoin\n" +
-			"                 ├─ cmp: Eq\n" +
-			"                 │   ├─ mytable.i:0!null\n" +
-			"                 │   └─ othertable.i2:1!null\n" +
-			"                 ├─ IndexedTableAccess(mytable)\n" +
-			"                 │   ├─ index: [mytable.i,mytable.s]\n" +
-			"                 │   ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                 │   ├─ colSet: (1,2)\n" +
-			"                 │   ├─ tableId: 1\n" +
-			"                 │   └─ Table\n" +
-			"                 │       ├─ name: mytable\n" +
-			"                 │       └─ columns: [i]\n" +
-			"                 └─ IndexedTableAccess(othertable)\n" +
-			"                     ├─ index: [othertable.i2]\n" +
-			"                     ├─ static: [{[NULL, ∞)}]\n" +
-			"                     ├─ colSet: (3,4)\n" +
-			"                     ├─ tableId: 2\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: othertable\n" +
-			"                         └─ columns: [i2]\n" +
+			" ├─ columns: [row_number() over ( order by mytable.i desc):0!null->row_number() over (order by i desc):0, mytable.i:1!null->i2:0]\n" +
+			" └─ Sort(row_number() over ( order by mytable.i desc):0!null->row_number() over (order by i desc):0 ASC nullsFirst)\n" +
+			"     └─ Window\n" +
+			"         ├─ row_number() over ( order by mytable.i DESC)\n" +
+			"         ├─ mytable.i:0!null\n" +
+			"         └─ MergeJoin\n" +
+			"             ├─ cmp: Eq\n" +
+			"             │   ├─ mytable.i:0!null\n" +
+			"             │   └─ othertable.i2:1!null\n" +
+			"             ├─ IndexedTableAccess(mytable)\n" +
+			"             │   ├─ index: [mytable.i,mytable.s]\n" +
+			"             │   ├─ static: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"             │   ├─ colSet: (1,2)\n" +
+			"             │   ├─ tableId: 1\n" +
+			"             │   └─ Table\n" +
+			"             │       ├─ name: mytable\n" +
+			"             │       └─ columns: [i]\n" +
+			"             └─ IndexedTableAccess(othertable)\n" +
+			"                 ├─ index: [othertable.i2]\n" +
+			"                 ├─ static: [{[NULL, ∞)}]\n" +
+			"                 ├─ colSet: (3,4)\n" +
+			"                 ├─ tableId: 2\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: othertable\n" +
+			"                     └─ columns: [i2]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [row_number() over ( order by mytable.i desc) as row_number() over (order by i desc), mytable.i as i2]\n" +
 			" └─ Sort(row_number() over ( order by mytable.i desc) as row_number() over (order by i desc) ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by mytable.i desc), mytable.i, mytable.i as i2]\n" +
-			"         └─ Window(row_number() over ( order by mytable.i DESC), mytable.i)\n" +
-			"             └─ MergeJoin\n" +
-			"                 ├─ cmp: (mytable.i = othertable.i2)\n" +
-			"                 ├─ IndexedTableAccess(mytable)\n" +
-			"                 │   ├─ index: [mytable.i,mytable.s]\n" +
-			"                 │   ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                 │   └─ columns: [i]\n" +
-			"                 └─ IndexedTableAccess(othertable)\n" +
-			"                     ├─ index: [othertable.i2]\n" +
-			"                     ├─ filters: [{[NULL, ∞)}]\n" +
-			"                     └─ columns: [i2]\n" +
+			"     └─ Window(row_number() over ( order by mytable.i DESC), mytable.i)\n" +
+			"         └─ MergeJoin\n" +
+			"             ├─ cmp: (mytable.i = othertable.i2)\n" +
+			"             ├─ IndexedTableAccess(mytable)\n" +
+			"             │   ├─ index: [mytable.i,mytable.s]\n" +
+			"             │   ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"             │   └─ columns: [i]\n" +
+			"             └─ IndexedTableAccess(othertable)\n" +
+			"                 ├─ index: [othertable.i2]\n" +
+			"                 ├─ filters: [{[NULL, ∞)}]\n" +
+			"                 └─ columns: [i2]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [row_number() over ( order by mytable.i desc) as row_number() over (order by i desc), mytable.i as i2]\n" +
 			" └─ Sort(row_number() over ( order by mytable.i desc) as row_number() over (order by i desc) ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by mytable.i desc), mytable.i, mytable.i as i2]\n" +
-			"         └─ Window(row_number() over ( order by mytable.i DESC), mytable.i)\n" +
-			"             └─ MergeJoin\n" +
-			"                 ├─ cmp: (mytable.i = othertable.i2)\n" +
-			"                 ├─ IndexedTableAccess(mytable)\n" +
-			"                 │   ├─ index: [mytable.i,mytable.s]\n" +
-			"                 │   ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
-			"                 │   └─ columns: [i]\n" +
-			"                 └─ IndexedTableAccess(othertable)\n" +
-			"                     ├─ index: [othertable.i2]\n" +
-			"                     ├─ filters: [{[NULL, ∞)}]\n" +
-			"                     └─ columns: [i2]\n" +
+			"     └─ Window(row_number() over ( order by mytable.i DESC), mytable.i)\n" +
+			"         └─ MergeJoin\n" +
+			"             ├─ cmp: (mytable.i = othertable.i2)\n" +
+			"             ├─ IndexedTableAccess(mytable)\n" +
+			"             │   ├─ index: [mytable.i,mytable.s]\n" +
+			"             │   ├─ filters: [{[NULL, ∞), [NULL, ∞)}]\n" +
+			"             │   └─ columns: [i]\n" +
+			"             └─ IndexedTableAccess(othertable)\n" +
+			"                 ├─ index: [othertable.i2]\n" +
+			"                 ├─ filters: [{[NULL, ∞)}]\n" +
+			"                 └─ columns: [i2]\n" +
 			"",
 	},
 	{
@@ -6635,62 +6802,56 @@ inner join pq on true
 				where mytable.i = 2
 				order by 1`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [row_number() over ( order by mytable.i desc):0!null as row_number() over (order by i desc), mytable.i:1!null as i2]\n" +
-			" └─ Sort(row_number() over ( order by mytable.i desc):0!null as row_number() over (order by i desc) ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by mytable.i desc):0!null, mytable.i:1!null, mytable.i:1!null as i2]\n" +
-			"         └─ Window\n" +
-			"             ├─ row_number() over ( order by mytable.i DESC)\n" +
-			"             ├─ mytable.i:0!null\n" +
-			"             └─ LookupJoin\n" +
-			"                 ├─ IndexedTableAccess(mytable)\n" +
-			"                 │   ├─ index: [mytable.i]\n" +
-			"                 │   ├─ static: [{[2, 2]}]\n" +
-			"                 │   ├─ colSet: (1,2)\n" +
-			"                 │   ├─ tableId: 1\n" +
-			"                 │   └─ Table\n" +
-			"                 │       ├─ name: mytable\n" +
-			"                 │       └─ columns: [i]\n" +
-			"                 └─ IndexedTableAccess(othertable)\n" +
-			"                     ├─ index: [othertable.i2]\n" +
-			"                     ├─ keys: [mytable.i:0!null]\n" +
-			"                     ├─ colSet: (3,4)\n" +
-			"                     ├─ tableId: 2\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: othertable\n" +
-			"                         └─ columns: [i2]\n" +
+			" ├─ columns: [row_number() over ( order by mytable.i desc):0!null->row_number() over (order by i desc):0, mytable.i:1!null->i2:0]\n" +
+			" └─ Sort(row_number() over ( order by mytable.i desc):0!null->row_number() over (order by i desc):0 ASC nullsFirst)\n" +
+			"     └─ Window\n" +
+			"         ├─ row_number() over ( order by mytable.i DESC)\n" +
+			"         ├─ mytable.i:0!null\n" +
+			"         └─ LookupJoin\n" +
+			"             ├─ IndexedTableAccess(mytable)\n" +
+			"             │   ├─ index: [mytable.i]\n" +
+			"             │   ├─ static: [{[2, 2]}]\n" +
+			"             │   ├─ colSet: (1,2)\n" +
+			"             │   ├─ tableId: 1\n" +
+			"             │   └─ Table\n" +
+			"             │       ├─ name: mytable\n" +
+			"             │       └─ columns: [i]\n" +
+			"             └─ IndexedTableAccess(othertable)\n" +
+			"                 ├─ index: [othertable.i2]\n" +
+			"                 ├─ keys: [mytable.i:0!null]\n" +
+			"                 ├─ colSet: (3,4)\n" +
+			"                 ├─ tableId: 2\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: othertable\n" +
+			"                     └─ columns: [i2]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [row_number() over ( order by mytable.i desc) as row_number() over (order by i desc), mytable.i as i2]\n" +
 			" └─ Sort(row_number() over ( order by mytable.i desc) as row_number() over (order by i desc) ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by mytable.i desc), mytable.i, mytable.i as i2]\n" +
-			"         └─ Window(row_number() over ( order by mytable.i DESC), mytable.i)\n" +
-			"             └─ LookupJoin\n" +
-			"                 ├─ IndexedTableAccess(mytable)\n" +
-			"                 │   ├─ index: [mytable.i]\n" +
-			"                 │   ├─ filters: [{[2, 2]}]\n" +
-			"                 │   └─ columns: [i]\n" +
-			"                 └─ IndexedTableAccess(othertable)\n" +
-			"                     ├─ index: [othertable.i2]\n" +
-			"                     ├─ columns: [i2]\n" +
-			"                     └─ keys: mytable.i\n" +
+			"     └─ Window(row_number() over ( order by mytable.i DESC), mytable.i)\n" +
+			"         └─ LookupJoin\n" +
+			"             ├─ IndexedTableAccess(mytable)\n" +
+			"             │   ├─ index: [mytable.i]\n" +
+			"             │   ├─ filters: [{[2, 2]}]\n" +
+			"             │   └─ columns: [i]\n" +
+			"             └─ IndexedTableAccess(othertable)\n" +
+			"                 ├─ index: [othertable.i2]\n" +
+			"                 ├─ columns: [i2]\n" +
+			"                 └─ keys: mytable.i\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [row_number() over ( order by mytable.i desc) as row_number() over (order by i desc), mytable.i as i2]\n" +
 			" └─ Sort(row_number() over ( order by mytable.i desc) as row_number() over (order by i desc) ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by mytable.i desc), mytable.i, mytable.i as i2]\n" +
-			"         └─ Window(row_number() over ( order by mytable.i DESC), mytable.i)\n" +
-			"             └─ LookupJoin\n" +
-			"                 ├─ IndexedTableAccess(mytable)\n" +
-			"                 │   ├─ index: [mytable.i]\n" +
-			"                 │   ├─ filters: [{[2, 2]}]\n" +
-			"                 │   └─ columns: [i]\n" +
-			"                 └─ IndexedTableAccess(othertable)\n" +
-			"                     ├─ index: [othertable.i2]\n" +
-			"                     ├─ columns: [i2]\n" +
-			"                     └─ keys: mytable.i\n" +
+			"     └─ Window(row_number() over ( order by mytable.i DESC), mytable.i)\n" +
+			"         └─ LookupJoin\n" +
+			"             ├─ IndexedTableAccess(mytable)\n" +
+			"             │   ├─ index: [mytable.i]\n" +
+			"             │   ├─ filters: [{[2, 2]}]\n" +
+			"             │   └─ columns: [i]\n" +
+			"             └─ IndexedTableAccess(othertable)\n" +
+			"                 ├─ index: [othertable.i2]\n" +
+			"                 ├─ columns: [i2]\n" +
+			"                 └─ keys: mytable.i\n" +
 			"",
 	},
 	{
@@ -7784,7 +7945,7 @@ inner join pq on true
 			"         ├─ colSet: (20,21)\n" +
 			"         ├─ tableId: 4\n" +
 			"         └─ Project\n" +
-			"             ├─ columns: [one_pk.pk:0!null, rand() as r]\n" +
+			"             ├─ columns: [one_pk.pk:0!null, rand()->r:19]\n" +
 			"             └─ Table\n" +
 			"                 ├─ name: one_pk\n" +
 			"                 ├─ columns: [pk]\n" +
@@ -7887,7 +8048,7 @@ inner join pq on true
 			"         ├─ colSet: (20,21)\n" +
 			"         ├─ tableId: 4\n" +
 			"         └─ Project\n" +
-			"             ├─ columns: [one_pk.pk:0!null, rand() as r]\n" +
+			"             ├─ columns: [one_pk.pk:0!null, rand()->r:19]\n" +
 			"             └─ Table\n" +
 			"                 ├─ name: one_pk\n" +
 			"                 ├─ columns: [pk]\n" +
@@ -7962,7 +8123,7 @@ inner join pq on true
 			" └─ Project\n" +
 			"     ├─ columns: [i:0!null, s:1!null]\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [(sub.i:0!null + 10 (tinyint)) as sub.i + 10, ot.s2:3!null]\n" +
+			"         ├─ columns: [(sub.i:0!null + 10 (tinyint))->sub.i + 10:0, ot.s2:3!null]\n" +
 			"         └─ HashJoin\n" +
 			"             ├─ Eq\n" +
 			"             │   ├─ sub.i:0!null\n" +
@@ -16123,65 +16284,59 @@ inner join pq on true
 	{
 		Query: `SELECT pk,pk1,pk2,one_pk.c1 AS foo, two_pk.c1 AS bar FROM one_pk JOIN two_pk ON one_pk.c1=two_pk.c1 ORDER BY 1,2,3`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [one_pk.pk:0!null, two_pk.pk1:6!null, two_pk.pk2:7!null, one_pk.c1:1 as foo, two_pk.c1:8!null as bar]\n" +
-			" └─ Sort(one_pk.pk:0!null ASC nullsFirst, two_pk.pk1:6!null ASC nullsFirst, two_pk.pk2:7!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [one_pk.pk:0!null, one_pk.c1:1, one_pk.c2:2, one_pk.c3:3, one_pk.c4:4, one_pk.c5:5, two_pk.pk1:6!null, two_pk.pk2:7!null, two_pk.c1:8!null, two_pk.c2:9!null, two_pk.c3:10!null, two_pk.c4:11!null, two_pk.c5:12!null, one_pk.c1:1 as foo, two_pk.c1:8!null as bar]\n" +
-			"         └─ HashJoin\n" +
-			"             ├─ Eq\n" +
-			"             │   ├─ one_pk.c1:1\n" +
-			"             │   └─ two_pk.c1:8!null\n" +
-			"             ├─ ProcessTable\n" +
-			"             │   └─ Table\n" +
-			"             │       ├─ name: one_pk\n" +
-			"             │       └─ columns: [pk c1 c2 c3 c4 c5]\n" +
-			"             └─ HashLookup\n" +
-			"                 ├─ left-key: TUPLE(one_pk.c1:1)\n" +
-			"                 ├─ right-key: TUPLE(two_pk.c1:2!null)\n" +
-			"                 └─ ProcessTable\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: two_pk\n" +
-			"                         └─ columns: [pk1 pk2 c1 c2 c3 c4 c5]\n" +
+			" ├─ columns: [one_pk.pk:0!null, two_pk.pk1:2!null, two_pk.pk2:3!null, one_pk.c1:1->foo:0, two_pk.c1:4!null->bar:0]\n" +
+			" └─ Sort(one_pk.pk:0!null ASC nullsFirst, two_pk.pk1:2!null ASC nullsFirst, two_pk.pk2:3!null ASC nullsFirst)\n" +
+			"     └─ HashJoin\n" +
+			"         ├─ Eq\n" +
+			"         │   ├─ one_pk.c1:1\n" +
+			"         │   └─ two_pk.c1:4!null\n" +
+			"         ├─ ProcessTable\n" +
+			"         │   └─ Table\n" +
+			"         │       ├─ name: one_pk\n" +
+			"         │       └─ columns: [pk c1]\n" +
+			"         └─ HashLookup\n" +
+			"             ├─ left-key: TUPLE(one_pk.c1:1)\n" +
+			"             ├─ right-key: TUPLE(two_pk.c1:2!null)\n" +
+			"             └─ ProcessTable\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: two_pk\n" +
+			"                     └─ columns: [pk1 pk2 c1]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [one_pk.pk, two_pk.pk1, two_pk.pk2, one_pk.c1 as foo, two_pk.c1 as bar]\n" +
 			" └─ Sort(one_pk.pk ASC, two_pk.pk1 ASC, two_pk.pk2 ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [one_pk.pk, one_pk.c1, one_pk.c2, one_pk.c3, one_pk.c4, one_pk.c5, two_pk.pk1, two_pk.pk2, two_pk.c1, two_pk.c2, two_pk.c3, two_pk.c4, two_pk.c5, one_pk.c1 as foo, two_pk.c1 as bar]\n" +
-			"         └─ HashJoin\n" +
-			"             ├─ (one_pk.c1 = two_pk.c1)\n" +
-			"             ├─ Table\n" +
-			"             │   ├─ name: one_pk\n" +
-			"             │   └─ columns: [pk c1 c2 c3 c4 c5]\n" +
-			"             └─ HashLookup\n" +
-			"                 ├─ left-key: (one_pk.c1)\n" +
-			"                 ├─ right-key: (two_pk.c1)\n" +
-			"                 └─ Table\n" +
-			"                     ├─ name: two_pk\n" +
-			"                     └─ columns: [pk1 pk2 c1 c2 c3 c4 c5]\n" +
+			"     └─ HashJoin\n" +
+			"         ├─ (one_pk.c1 = two_pk.c1)\n" +
+			"         ├─ Table\n" +
+			"         │   ├─ name: one_pk\n" +
+			"         │   └─ columns: [pk c1]\n" +
+			"         └─ HashLookup\n" +
+			"             ├─ left-key: (one_pk.c1)\n" +
+			"             ├─ right-key: (two_pk.c1)\n" +
+			"             └─ Table\n" +
+			"                 ├─ name: two_pk\n" +
+			"                 └─ columns: [pk1 pk2 c1]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [one_pk.pk, two_pk.pk1, two_pk.pk2, one_pk.c1 as foo, two_pk.c1 as bar]\n" +
 			" └─ Sort(one_pk.pk ASC, two_pk.pk1 ASC, two_pk.pk2 ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [one_pk.pk, one_pk.c1, one_pk.c2, one_pk.c3, one_pk.c4, one_pk.c5, two_pk.pk1, two_pk.pk2, two_pk.c1, two_pk.c2, two_pk.c3, two_pk.c4, two_pk.c5, one_pk.c1 as foo, two_pk.c1 as bar]\n" +
-			"         └─ HashJoin\n" +
-			"             ├─ (one_pk.c1 = two_pk.c1)\n" +
-			"             ├─ Table\n" +
-			"             │   ├─ name: one_pk\n" +
-			"             │   └─ columns: [pk c1 c2 c3 c4 c5]\n" +
-			"             └─ HashLookup\n" +
-			"                 ├─ left-key: (one_pk.c1)\n" +
-			"                 ├─ right-key: (two_pk.c1)\n" +
-			"                 └─ Table\n" +
-			"                     ├─ name: two_pk\n" +
-			"                     └─ columns: [pk1 pk2 c1 c2 c3 c4 c5]\n" +
+			"     └─ HashJoin\n" +
+			"         ├─ (one_pk.c1 = two_pk.c1)\n" +
+			"         ├─ Table\n" +
+			"         │   ├─ name: one_pk\n" +
+			"         │   └─ columns: [pk c1]\n" +
+			"         └─ HashLookup\n" +
+			"             ├─ left-key: (one_pk.c1)\n" +
+			"             ├─ right-key: (two_pk.c1)\n" +
+			"             └─ Table\n" +
+			"                 ├─ name: two_pk\n" +
+			"                 └─ columns: [pk1 pk2 c1]\n" +
 			"",
 	},
 	{
 		Query: `SELECT pk,pk1,pk2,one_pk.c1 AS foo,two_pk.c1 AS bar FROM one_pk JOIN two_pk ON one_pk.c1=two_pk.c1 WHERE one_pk.c1=10`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [one_pk.pk:3!null, two_pk.pk1:0!null, two_pk.pk2:1!null, one_pk.c1:4 as foo, two_pk.c1:2!null as bar]\n" +
+			" ├─ columns: [one_pk.pk:3!null, two_pk.pk1:0!null, two_pk.pk2:1!null, one_pk.c1:4->foo:0, two_pk.c1:2!null->bar:0]\n" +
 			" └─ HashJoin\n" +
 			"     ├─ Eq\n" +
 			"     │   ├─ one_pk.c1:4\n" +
@@ -16562,7 +16717,7 @@ inner join pq on true
 			" │           └─ Table\n" +
 			" │               ├─ name: one_pk\n" +
 			" │               └─ columns: [pk]\n" +
-			" │   as (SELECT pk from one_pk where pk = 1 limit 1)]\n" +
+			" │  ->(SELECT pk from one_pk where pk = 1 limit 1):0]\n" +
 			" └─ Sort(t1.pk:7!null ASC nullsFirst, t2.pk2:1!null ASC nullsFirst)\n" +
 			"     └─ CrossJoin\n" +
 			"         ├─ Filter\n" +
@@ -16630,44 +16785,38 @@ inner join pq on true
 	{
 		Query: `SELECT ROW_NUMBER() OVER (ORDER BY s2 ASC) idx, i2, s2 FROM othertable WHERE s2 <> 'second' ORDER BY i2 ASC`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null as idx, othertable.i2:1!null, othertable.s2:2!null]\n" +
+			" ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null->idx:0, othertable.i2:1!null, othertable.s2:2!null]\n" +
 			" └─ Sort(othertable.i2:1!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null, othertable.i2:1!null, othertable.s2:2!null, row_number() over ( order by othertable.s2 asc):0!null as idx]\n" +
-			"         └─ Window\n" +
-			"             ├─ row_number() over ( order by othertable.s2 ASC)\n" +
-			"             ├─ othertable.i2:1!null\n" +
-			"             ├─ othertable.s2:0!null\n" +
-			"             └─ IndexedTableAccess(othertable)\n" +
-			"                 ├─ index: [othertable.s2]\n" +
-			"                 ├─ static: [{(NULL, second)}, {(second, ∞)}]\n" +
-			"                 ├─ colSet: (1,2)\n" +
-			"                 ├─ tableId: 1\n" +
-			"                 └─ Table\n" +
-			"                     ├─ name: othertable\n" +
-			"                     └─ columns: [s2 i2]\n" +
+			"     └─ Window\n" +
+			"         ├─ row_number() over ( order by othertable.s2 ASC)\n" +
+			"         ├─ othertable.i2:1!null\n" +
+			"         ├─ othertable.s2:0!null\n" +
+			"         └─ IndexedTableAccess(othertable)\n" +
+			"             ├─ index: [othertable.s2]\n" +
+			"             ├─ static: [{(NULL, second)}, {(second, ∞)}]\n" +
+			"             ├─ colSet: (1,2)\n" +
+			"             ├─ tableId: 1\n" +
+			"             └─ Table\n" +
+			"                 ├─ name: othertable\n" +
+			"                 └─ columns: [s2 i2]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [row_number() over ( order by othertable.s2 asc) as idx, othertable.i2, othertable.s2]\n" +
 			" └─ Sort(othertable.i2 ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by othertable.s2 asc), othertable.i2, othertable.s2, row_number() over ( order by othertable.s2 asc) as idx]\n" +
-			"         └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
-			"             └─ IndexedTableAccess(othertable)\n" +
-			"                 ├─ index: [othertable.s2]\n" +
-			"                 ├─ filters: [{(NULL, second)}, {(second, ∞)}]\n" +
-			"                 └─ columns: [s2 i2]\n" +
+			"     └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
+			"         └─ IndexedTableAccess(othertable)\n" +
+			"             ├─ index: [othertable.s2]\n" +
+			"             ├─ filters: [{(NULL, second)}, {(second, ∞)}]\n" +
+			"             └─ columns: [s2 i2]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [row_number() over ( order by othertable.s2 asc) as idx, othertable.i2, othertable.s2]\n" +
 			" └─ Sort(othertable.i2 ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by othertable.s2 asc), othertable.i2, othertable.s2, row_number() over ( order by othertable.s2 asc) as idx]\n" +
-			"         └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
-			"             └─ IndexedTableAccess(othertable)\n" +
-			"                 ├─ index: [othertable.s2]\n" +
-			"                 ├─ filters: [{(NULL, second)}, {(second, ∞)}]\n" +
-			"                 └─ columns: [s2 i2]\n" +
+			"     └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
+			"         └─ IndexedTableAccess(othertable)\n" +
+			"             ├─ index: [othertable.s2]\n" +
+			"             ├─ filters: [{(NULL, second)}, {(second, ∞)}]\n" +
+			"             └─ columns: [s2 i2]\n" +
 			"",
 	},
 	{
@@ -16685,19 +16834,17 @@ inner join pq on true
 			"     │       ├─ othertable.s2:2!null\n" +
 			"     │       └─ second (longtext)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null as idx, othertable.i2:1!null, othertable.s2:2!null]\n" +
+			"         ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null->idx:0, othertable.i2:1!null, othertable.s2:2!null]\n" +
 			"         └─ Sort(othertable.i2:1!null ASC nullsFirst)\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null, othertable.i2:1!null, othertable.s2:2!null, row_number() over ( order by othertable.s2 asc):0!null as idx]\n" +
-			"                 └─ Window\n" +
-			"                     ├─ row_number() over ( order by othertable.s2 ASC)\n" +
-			"                     ├─ othertable.i2:1!null\n" +
-			"                     ├─ othertable.s2:0!null\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: othertable\n" +
-			"                         ├─ columns: [s2 i2]\n" +
-			"                         ├─ colSet: (1,2)\n" +
-			"                         └─ tableId: 1\n" +
+			"             └─ Window\n" +
+			"                 ├─ row_number() over ( order by othertable.s2 ASC)\n" +
+			"                 ├─ othertable.i2:1!null\n" +
+			"                 ├─ othertable.s2:0!null\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: othertable\n" +
+			"                     ├─ columns: [s2 i2]\n" +
+			"                     ├─ colSet: (1,2)\n" +
+			"                     └─ tableId: 1\n" +
 			"",
 		ExpectedEstimates: "SubqueryAlias\n" +
 			" ├─ name: a\n" +
@@ -16709,12 +16856,10 @@ inner join pq on true
 			"     └─ Project\n" +
 			"         ├─ columns: [row_number() over ( order by othertable.s2 asc) as idx, othertable.i2, othertable.s2]\n" +
 			"         └─ Sort(othertable.i2 ASC)\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [row_number() over ( order by othertable.s2 asc), othertable.i2, othertable.s2, row_number() over ( order by othertable.s2 asc) as idx]\n" +
-			"                 └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: othertable\n" +
-			"                         └─ columns: [s2 i2]\n" +
+			"             └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: othertable\n" +
+			"                     └─ columns: [s2 i2]\n" +
 			"",
 		ExpectedAnalysis: "SubqueryAlias\n" +
 			" ├─ name: a\n" +
@@ -16726,55 +16871,47 @@ inner join pq on true
 			"     └─ Project\n" +
 			"         ├─ columns: [row_number() over ( order by othertable.s2 asc) as idx, othertable.i2, othertable.s2]\n" +
 			"         └─ Sort(othertable.i2 ASC)\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [row_number() over ( order by othertable.s2 asc), othertable.i2, othertable.s2, row_number() over ( order by othertable.s2 asc) as idx]\n" +
-			"                 └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: othertable\n" +
-			"                         └─ columns: [s2 i2]\n" +
+			"             └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: othertable\n" +
+			"                     └─ columns: [s2 i2]\n" +
 			"",
 	},
 	{
 		Query: `SELECT ROW_NUMBER() OVER (ORDER BY s2 ASC) idx, i2, s2 FROM othertable WHERE i2 < 2 OR i2 > 2 ORDER BY i2 ASC`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null as idx, othertable.i2:1!null, othertable.s2:2!null]\n" +
+			" ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null->idx:0, othertable.i2:1!null, othertable.s2:2!null]\n" +
 			" └─ Sort(othertable.i2:1!null ASC nullsFirst)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null, othertable.i2:1!null, othertable.s2:2!null, row_number() over ( order by othertable.s2 asc):0!null as idx]\n" +
-			"         └─ Window\n" +
-			"             ├─ row_number() over ( order by othertable.s2 ASC)\n" +
-			"             ├─ othertable.i2:1!null\n" +
-			"             ├─ othertable.s2:0!null\n" +
-			"             └─ IndexedTableAccess(othertable)\n" +
-			"                 ├─ index: [othertable.i2]\n" +
-			"                 ├─ static: [{(NULL, 2)}, {(2, ∞)}]\n" +
-			"                 ├─ colSet: (1,2)\n" +
-			"                 ├─ tableId: 1\n" +
-			"                 └─ Table\n" +
-			"                     ├─ name: othertable\n" +
-			"                     └─ columns: [s2 i2]\n" +
+			"     └─ Window\n" +
+			"         ├─ row_number() over ( order by othertable.s2 ASC)\n" +
+			"         ├─ othertable.i2:1!null\n" +
+			"         ├─ othertable.s2:0!null\n" +
+			"         └─ IndexedTableAccess(othertable)\n" +
+			"             ├─ index: [othertable.i2]\n" +
+			"             ├─ static: [{(NULL, 2)}, {(2, ∞)}]\n" +
+			"             ├─ colSet: (1,2)\n" +
+			"             ├─ tableId: 1\n" +
+			"             └─ Table\n" +
+			"                 ├─ name: othertable\n" +
+			"                 └─ columns: [s2 i2]\n" +
 			"",
 		ExpectedEstimates: "Project\n" +
 			" ├─ columns: [row_number() over ( order by othertable.s2 asc) as idx, othertable.i2, othertable.s2]\n" +
 			" └─ Sort(othertable.i2 ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by othertable.s2 asc), othertable.i2, othertable.s2, row_number() over ( order by othertable.s2 asc) as idx]\n" +
-			"         └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
-			"             └─ IndexedTableAccess(othertable)\n" +
-			"                 ├─ index: [othertable.i2]\n" +
-			"                 ├─ filters: [{(NULL, 2)}, {(2, ∞)}]\n" +
-			"                 └─ columns: [s2 i2]\n" +
+			"     └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
+			"         └─ IndexedTableAccess(othertable)\n" +
+			"             ├─ index: [othertable.i2]\n" +
+			"             ├─ filters: [{(NULL, 2)}, {(2, ∞)}]\n" +
+			"             └─ columns: [s2 i2]\n" +
 			"",
 		ExpectedAnalysis: "Project\n" +
 			" ├─ columns: [row_number() over ( order by othertable.s2 asc) as idx, othertable.i2, othertable.s2]\n" +
 			" └─ Sort(othertable.i2 ASC)\n" +
-			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by othertable.s2 asc), othertable.i2, othertable.s2, row_number() over ( order by othertable.s2 asc) as idx]\n" +
-			"         └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
-			"             └─ IndexedTableAccess(othertable)\n" +
-			"                 ├─ index: [othertable.i2]\n" +
-			"                 ├─ filters: [{(NULL, 2)}, {(2, ∞)}]\n" +
-			"                 └─ columns: [s2 i2]\n" +
+			"     └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
+			"         └─ IndexedTableAccess(othertable)\n" +
+			"             ├─ index: [othertable.i2]\n" +
+			"             ├─ filters: [{(NULL, 2)}, {(2, ∞)}]\n" +
+			"             └─ columns: [s2 i2]\n" +
 			"",
 	},
 	{
@@ -16795,19 +16932,17 @@ inner join pq on true
 			"     │       ├─ othertable.i2:1!null\n" +
 			"     │       └─ 2 (bigint)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null as idx, othertable.i2:1!null, othertable.s2:2!null]\n" +
+			"         ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null->idx:0, othertable.i2:1!null, othertable.s2:2!null]\n" +
 			"         └─ Sort(othertable.i2:1!null ASC nullsFirst)\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [row_number() over ( order by othertable.s2 asc):0!null, othertable.i2:1!null, othertable.s2:2!null, row_number() over ( order by othertable.s2 asc):0!null as idx]\n" +
-			"                 └─ Window\n" +
-			"                     ├─ row_number() over ( order by othertable.s2 ASC)\n" +
-			"                     ├─ othertable.i2:1!null\n" +
-			"                     ├─ othertable.s2:0!null\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: othertable\n" +
-			"                         ├─ columns: [s2 i2]\n" +
-			"                         ├─ colSet: (1,2)\n" +
-			"                         └─ tableId: 1\n" +
+			"             └─ Window\n" +
+			"                 ├─ row_number() over ( order by othertable.s2 ASC)\n" +
+			"                 ├─ othertable.i2:1!null\n" +
+			"                 ├─ othertable.s2:0!null\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: othertable\n" +
+			"                     ├─ columns: [s2 i2]\n" +
+			"                     ├─ colSet: (1,2)\n" +
+			"                     └─ tableId: 1\n" +
 			"",
 		ExpectedEstimates: "SubqueryAlias\n" +
 			" ├─ name: a\n" +
@@ -16819,12 +16954,10 @@ inner join pq on true
 			"     └─ Project\n" +
 			"         ├─ columns: [row_number() over ( order by othertable.s2 asc) as idx, othertable.i2, othertable.s2]\n" +
 			"         └─ Sort(othertable.i2 ASC)\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [row_number() over ( order by othertable.s2 asc), othertable.i2, othertable.s2, row_number() over ( order by othertable.s2 asc) as idx]\n" +
-			"                 └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: othertable\n" +
-			"                         └─ columns: [s2 i2]\n" +
+			"             └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: othertable\n" +
+			"                     └─ columns: [s2 i2]\n" +
 			"",
 		ExpectedAnalysis: "SubqueryAlias\n" +
 			" ├─ name: a\n" +
@@ -16836,18 +16969,16 @@ inner join pq on true
 			"     └─ Project\n" +
 			"         ├─ columns: [row_number() over ( order by othertable.s2 asc) as idx, othertable.i2, othertable.s2]\n" +
 			"         └─ Sort(othertable.i2 ASC)\n" +
-			"             └─ Project\n" +
-			"                 ├─ columns: [row_number() over ( order by othertable.s2 asc), othertable.i2, othertable.s2, row_number() over ( order by othertable.s2 asc) as idx]\n" +
-			"                 └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
-			"                     └─ Table\n" +
-			"                         ├─ name: othertable\n" +
-			"                         └─ columns: [s2 i2]\n" +
+			"             └─ Window(row_number() over ( order by othertable.s2 ASC), othertable.i2, othertable.s2)\n" +
+			"                 └─ Table\n" +
+			"                     ├─ name: othertable\n" +
+			"                     └─ columns: [s2 i2]\n" +
 			"",
 	},
 	{
 		Query: `SELECT t, n, lag(t, 1, t+1) over (partition by n) FROM bigtable`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [bigtable.t:1!null, bigtable.n:2, lag(bigtable.t, 1, (bigtable.t + 1)) over ( partition by bigtable.n rows between unbounded preceding and unbounded following):0 as lag(t, 1, t+1) over (partition by n)]\n" +
+			" ├─ columns: [bigtable.t:1!null, bigtable.n:2, lag(bigtable.t, 1, (bigtable.t + 1)) over ( partition by bigtable.n rows between unbounded preceding and unbounded following):0->lag(t, 1, t+1) over (partition by n):0]\n" +
 			" └─ Window\n" +
 			"     ├─ lag(bigtable.t, 1, (bigtable.t + 1)) over ( partition by bigtable.n ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)\n" +
 			"     ├─ bigtable.t:0!null\n" +
@@ -16875,7 +17006,7 @@ inner join pq on true
 	{
 		Query: `select i, row_number() over (w3) from mytable window w1 as (w2), w2 as (), w3 as (w1)`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [mytable.i:1!null, row_number() over ( rows between unbounded preceding and unbounded following):0!null as row_number() over (w3)]\n" +
+			" ├─ columns: [mytable.i:1!null, row_number() over ( rows between unbounded preceding and unbounded following):0!null->row_number() over (w3):0]\n" +
 			" └─ Window\n" +
 			"     ├─ row_number() over ( ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)\n" +
 			"     ├─ mytable.i:0!null\n" +
@@ -16902,7 +17033,7 @@ inner join pq on true
 	{
 		Query: `select i, row_number() over (w1 partition by s) from mytable window w1 as (order by i asc)`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [mytable.i:1!null, row_number() over ( partition by mytable.s order by mytable.i asc rows between unbounded preceding and unbounded following):0!null as row_number() over (w1 partition by s)]\n" +
+			" ├─ columns: [mytable.i:1!null, row_number() over ( partition by mytable.s order by mytable.i asc rows between unbounded preceding and unbounded following):0!null->row_number() over (w1 partition by s):0]\n" +
 			" └─ Window\n" +
 			"     ├─ row_number() over ( partition by mytable.s order by mytable.i ASC ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)\n" +
 			"     ├─ mytable.i:0!null\n" +
@@ -17916,8 +18047,8 @@ inner join pq on true
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (5,6)\n" +
-			"         ├─ tableId: 3\n" +
+			"         ├─ colSet: (7,8)\n" +
+			"         ├─ tableId: 4\n" +
 			"         └─ CrossJoin\n" +
 			"             ├─ TableAlias(b)\n" +
 			"             │   └─ Table\n" +
@@ -19473,7 +19604,7 @@ inner join pq on true
 			" ├─ outerVisibility: false\n" +
 			" ├─ isLateral: false\n" +
 			" ├─ cacheable: true\n" +
-			" ├─ colSet: (4)\n" +
+			" ├─ colSet: (5)\n" +
 			" ├─ tableId: 4\n" +
 			" └─ Project\n" +
 			"     ├─ columns: [1 (tinyint)]\n" +
@@ -19492,8 +19623,8 @@ inner join pq on true
 			"                 ├─ outerVisibility: false\n" +
 			"                 ├─ isLateral: false\n" +
 			"                 ├─ cacheable: true\n" +
-			"                 ├─ colSet: (1)\n" +
-			"                 ├─ tableId: 2\n" +
+			"                 ├─ colSet: (3)\n" +
+			"                 ├─ tableId: 3\n" +
 			"                 └─ Union distinct\n" +
 			"                     ├─ Project\n" +
 			"                     │   ├─ columns: [1 (tinyint)]\n" +
@@ -19630,8 +19761,8 @@ inner join pq on true
 			" │   ├─ outerVisibility: false\n" +
 			" │   ├─ isLateral: false\n" +
 			" │   ├─ cacheable: true\n" +
-			" │   ├─ colSet: (1)\n" +
-			" │   ├─ tableId: 2\n" +
+			" │   ├─ colSet: (3)\n" +
+			" │   ├─ tableId: 3\n" +
 			" │   └─ Union distinct\n" +
 			" │       ├─ Project\n" +
 			" │       │   ├─ columns: [1 (tinyint)]\n" +
@@ -19652,8 +19783,8 @@ inner join pq on true
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (1)\n" +
-			"     ├─ tableId: 2\n" +
+			"     ├─ colSet: (4)\n" +
+			"     ├─ tableId: 4\n" +
 			"     └─ Union distinct\n" +
 			"         ├─ Project\n" +
 			"         │   ├─ columns: [1 (tinyint)]\n" +
@@ -19745,8 +19876,8 @@ inner join pq on true
 			" │       ├─ outerVisibility: false\n" +
 			" │       ├─ isLateral: false\n" +
 			" │       ├─ cacheable: true\n" +
-			" │       ├─ colSet: (1)\n" +
-			" │       ├─ tableId: 2\n" +
+			" │       ├─ colSet: (3)\n" +
+			" │       ├─ tableId: 3\n" +
 			" │       └─ Union distinct\n" +
 			" │           ├─ Project\n" +
 			" │           │   ├─ columns: [1 (tinyint)]\n" +
@@ -19771,8 +19902,8 @@ inner join pq on true
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (1)\n" +
-			"         ├─ tableId: 2\n" +
+			"         ├─ colSet: (4)\n" +
+			"         ├─ tableId: 4\n" +
 			"         └─ Union distinct\n" +
 			"             ├─ Project\n" +
 			"             │   ├─ columns: [1 (tinyint)]\n" +
@@ -19857,17 +19988,17 @@ inner join pq on true
 	{
 		Query: `with recursive a(x) as (select 1 union select 2) select * from a where x > 1 union select * from a where x > 1;`,
 		ExpectedPlan: "Union distinct\n" +
-			" ├─ Filter\n" +
-			" │   ├─ GreaterThan\n" +
-			" │   │   ├─ a.x:0!null\n" +
-			" │   │   └─ 1 (tinyint)\n" +
-			" │   └─ SubqueryAlias\n" +
-			" │       ├─ name: a\n" +
-			" │       ├─ outerVisibility: false\n" +
-			" │       ├─ isLateral: false\n" +
-			" │       ├─ cacheable: true\n" +
-			" │       ├─ colSet: (1)\n" +
-			" │       ├─ tableId: 2\n" +
+			" ├─ SubqueryAlias\n" +
+			" │   ├─ name: a\n" +
+			" │   ├─ outerVisibility: false\n" +
+			" │   ├─ isLateral: false\n" +
+			" │   ├─ cacheable: true\n" +
+			" │   ├─ colSet: (3)\n" +
+			" │   ├─ tableId: 3\n" +
+			" │   └─ Filter\n" +
+			" │       ├─ GreaterThan\n" +
+			" │       │   ├─ a.x:0!null\n" +
+			" │       │   └─ 1 (tinyint)\n" +
 			" │       └─ Union distinct\n" +
 			" │           ├─ Project\n" +
 			" │           │   ├─ columns: [1 (tinyint)]\n" +
@@ -19883,17 +20014,17 @@ inner join pq on true
 			" │                   ├─ columns: []\n" +
 			" │                   ├─ colSet: ()\n" +
 			" │                   └─ tableId: 0\n" +
-			" └─ Filter\n" +
-			"     ├─ GreaterThan\n" +
-			"     │   ├─ a.x:0!null\n" +
-			"     │   └─ 1 (tinyint)\n" +
-			"     └─ SubqueryAlias\n" +
-			"         ├─ name: a\n" +
-			"         ├─ outerVisibility: false\n" +
-			"         ├─ isLateral: false\n" +
-			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (1)\n" +
-			"         ├─ tableId: 2\n" +
+			" └─ SubqueryAlias\n" +
+			"     ├─ name: a\n" +
+			"     ├─ outerVisibility: false\n" +
+			"     ├─ isLateral: false\n" +
+			"     ├─ cacheable: true\n" +
+			"     ├─ colSet: (4)\n" +
+			"     ├─ tableId: 4\n" +
+			"     └─ Filter\n" +
+			"         ├─ GreaterThan\n" +
+			"         │   ├─ a.x:0!null\n" +
+			"         │   └─ 1 (tinyint)\n" +
 			"         └─ Union distinct\n" +
 			"             ├─ Project\n" +
 			"             │   ├─ columns: [1 (tinyint)]\n" +
@@ -19911,13 +20042,13 @@ inner join pq on true
 			"                     └─ tableId: 0\n" +
 			"",
 		ExpectedEstimates: "Union distinct\n" +
-			" ├─ Filter\n" +
-			" │   ├─ (a.x > 1)\n" +
-			" │   └─ SubqueryAlias\n" +
-			" │       ├─ name: a\n" +
-			" │       ├─ outerVisibility: false\n" +
-			" │       ├─ isLateral: false\n" +
-			" │       ├─ cacheable: true\n" +
+			" ├─ SubqueryAlias\n" +
+			" │   ├─ name: a\n" +
+			" │   ├─ outerVisibility: false\n" +
+			" │   ├─ isLateral: false\n" +
+			" │   ├─ cacheable: true\n" +
+			" │   └─ Filter\n" +
+			" │       ├─ (a.x > 1)\n" +
 			" │       └─ Union distinct\n" +
 			" │           ├─ Project\n" +
 			" │           │   ├─ columns: [1]\n" +
@@ -19927,13 +20058,13 @@ inner join pq on true
 			" │               ├─ columns: [2]\n" +
 			" │               └─ Table\n" +
 			" │                   └─ name: \n" +
-			" └─ Filter\n" +
-			"     ├─ (a.x > 1)\n" +
-			"     └─ SubqueryAlias\n" +
-			"         ├─ name: a\n" +
-			"         ├─ outerVisibility: false\n" +
-			"         ├─ isLateral: false\n" +
-			"         ├─ cacheable: true\n" +
+			" └─ SubqueryAlias\n" +
+			"     ├─ name: a\n" +
+			"     ├─ outerVisibility: false\n" +
+			"     ├─ isLateral: false\n" +
+			"     ├─ cacheable: true\n" +
+			"     └─ Filter\n" +
+			"         ├─ (a.x > 1)\n" +
 			"         └─ Union distinct\n" +
 			"             ├─ Project\n" +
 			"             │   ├─ columns: [1]\n" +
@@ -19945,13 +20076,13 @@ inner join pq on true
 			"                     └─ name: \n" +
 			"",
 		ExpectedAnalysis: "Union distinct\n" +
-			" ├─ Filter\n" +
-			" │   ├─ (a.x > 1)\n" +
-			" │   └─ SubqueryAlias\n" +
-			" │       ├─ name: a\n" +
-			" │       ├─ outerVisibility: false\n" +
-			" │       ├─ isLateral: false\n" +
-			" │       ├─ cacheable: true\n" +
+			" ├─ SubqueryAlias\n" +
+			" │   ├─ name: a\n" +
+			" │   ├─ outerVisibility: false\n" +
+			" │   ├─ isLateral: false\n" +
+			" │   ├─ cacheable: true\n" +
+			" │   └─ Filter\n" +
+			" │       ├─ (a.x > 1)\n" +
 			" │       └─ Union distinct\n" +
 			" │           ├─ Project\n" +
 			" │           │   ├─ columns: [1]\n" +
@@ -19961,13 +20092,13 @@ inner join pq on true
 			" │               ├─ columns: [2]\n" +
 			" │               └─ Table\n" +
 			" │                   └─ name: \n" +
-			" └─ Filter\n" +
-			"     ├─ (a.x > 1)\n" +
-			"     └─ SubqueryAlias\n" +
-			"         ├─ name: a\n" +
-			"         ├─ outerVisibility: false\n" +
-			"         ├─ isLateral: false\n" +
-			"         ├─ cacheable: true\n" +
+			" └─ SubqueryAlias\n" +
+			"     ├─ name: a\n" +
+			"     ├─ outerVisibility: false\n" +
+			"     ├─ isLateral: false\n" +
+			"     ├─ cacheable: true\n" +
+			"     └─ Filter\n" +
+			"         ├─ (a.x > 1)\n" +
 			"         └─ Union distinct\n" +
 			"             ├─ Project\n" +
 			"             │   ├─ columns: [1]\n" +
@@ -19987,8 +20118,8 @@ inner join pq on true
 			" │   ├─ outerVisibility: false\n" +
 			" │   ├─ isLateral: false\n" +
 			" │   ├─ cacheable: true\n" +
-			" │   ├─ colSet: (1)\n" +
-			" │   ├─ tableId: 2\n" +
+			" │   ├─ colSet: (3)\n" +
+			" │   ├─ tableId: 3\n" +
 			" │   └─ Union distinct\n" +
 			" │       ├─ Project\n" +
 			" │       │   ├─ columns: [1 (tinyint)]\n" +
@@ -20012,8 +20143,8 @@ inner join pq on true
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (1)\n" +
-			"         ├─ tableId: 2\n" +
+			"         ├─ colSet: (4)\n" +
+			"         ├─ tableId: 4\n" +
 			"         └─ Union distinct\n" +
 			"             ├─ Project\n" +
 			"             │   ├─ columns: [1 (tinyint)]\n" +
@@ -20106,8 +20237,8 @@ inner join pq on true
 			" │   ├─ outerVisibility: false\n" +
 			" │   ├─ isLateral: false\n" +
 			" │   ├─ cacheable: true\n" +
-			" │   ├─ colSet: (1)\n" +
-			" │   ├─ tableId: 2\n" +
+			" │   ├─ colSet: (3)\n" +
+			" │   ├─ tableId: 3\n" +
 			" │   └─ Union distinct\n" +
 			" │       ├─ Project\n" +
 			" │       │   ├─ columns: [1 (tinyint)]\n" +
@@ -20128,8 +20259,8 @@ inner join pq on true
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (1)\n" +
-			"     ├─ tableId: 2\n" +
+			"     ├─ colSet: (4)\n" +
+			"     ├─ tableId: 4\n" +
 			"     └─ Union distinct\n" +
 			"         ├─ Project\n" +
 			"         │   ├─ columns: [1 (tinyint)]\n" +
@@ -20212,7 +20343,7 @@ inner join pq on true
 	{
 		Query: `WITH recursive n(i) as (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i+1 <= 10 LIMIT 5) SELECT count(i) FROM n;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(n.i):0!null as count(i)]\n" +
+			" ├─ columns: [count(n.i):0!null->count(i):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(n.i:0!null)\n" +
 			"     ├─ group: \n" +
@@ -20221,8 +20352,8 @@ inner join pq on true
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (2)\n" +
-			"         ├─ tableId: 1\n" +
+			"         ├─ colSet: (4)\n" +
+			"         ├─ tableId: 3\n" +
 			"         └─ RecursiveCTE\n" +
 			"             └─ Union all\n" +
 			"                 ├─ limit: 5\n" +
@@ -20234,7 +20365,7 @@ inner join pq on true
 			"                 │       ├─ colSet: ()\n" +
 			"                 │       └─ tableId: 0\n" +
 			"                 └─ Project\n" +
-			"                     ├─ columns: [(n.i:0!null + 1 (tinyint)) as i + 1]\n" +
+			"                     ├─ columns: [(n.i:0!null + 1 (tinyint))->i + 1:0]\n" +
 			"                     └─ Filter\n" +
 			"                         ├─ LessThanOrEqual\n" +
 			"                         │   ├─ (n.i:0!null + 1 (tinyint))\n" +
@@ -20291,7 +20422,7 @@ inner join pq on true
 	{
 		Query: `WITH recursive n(i) as (SELECT 1 UNION ALL SELECT i + 1 FROM n GROUP BY i HAVING i+1 <= 10) SELECT count(i) FROM n;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(n.i):0!null as count(i)]\n" +
+			" ├─ columns: [count(n.i):0!null->count(i):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(n.i:0!null)\n" +
 			"     ├─ group: \n" +
@@ -20300,8 +20431,8 @@ inner join pq on true
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (2)\n" +
-			"         ├─ tableId: 1\n" +
+			"         ├─ colSet: (4)\n" +
+			"         ├─ tableId: 3\n" +
 			"         └─ RecursiveCTE\n" +
 			"             └─ Union all\n" +
 			"                 ├─ Project\n" +
@@ -20312,7 +20443,7 @@ inner join pq on true
 			"                 │       ├─ colSet: ()\n" +
 			"                 │       └─ tableId: 0\n" +
 			"                 └─ Project\n" +
-			"                     ├─ columns: [(n.i:0!null + 1 (tinyint)) as i + 1]\n" +
+			"                     ├─ columns: [(n.i:0!null + 1 (tinyint))->i + 1:0]\n" +
 			"                     └─ Having\n" +
 			"                         ├─ LessThanOrEqual\n" +
 			"                         │   ├─ (n.i:0!null + 1 (tinyint))\n" +
@@ -20374,7 +20505,7 @@ inner join pq on true
 	{
 		Query: `WITH recursive n(i) as (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i+1 <= 10 LIMIT 1) SELECT count(i) FROM n;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(n.i):0!null as count(i)]\n" +
+			" ├─ columns: [count(n.i):0!null->count(i):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(n.i:0!null)\n" +
 			"     ├─ group: \n" +
@@ -20383,8 +20514,8 @@ inner join pq on true
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (2)\n" +
-			"         ├─ tableId: 1\n" +
+			"         ├─ colSet: (4)\n" +
+			"         ├─ tableId: 3\n" +
 			"         └─ RecursiveCTE\n" +
 			"             └─ Union all\n" +
 			"                 ├─ limit: 1\n" +
@@ -20396,7 +20527,7 @@ inner join pq on true
 			"                 │       ├─ colSet: ()\n" +
 			"                 │       └─ tableId: 0\n" +
 			"                 └─ Project\n" +
-			"                     ├─ columns: [(n.i:0!null + 1 (tinyint)) as i + 1]\n" +
+			"                     ├─ columns: [(n.i:0!null + 1 (tinyint))->i + 1:0]\n" +
 			"                     └─ Filter\n" +
 			"                         ├─ LessThanOrEqual\n" +
 			"                         │   ├─ (n.i:0!null + 1 (tinyint))\n" +
@@ -20459,7 +20590,7 @@ inner join pq on true
 			" ├─ outerVisibility: false\n" +
 			" ├─ isLateral: false\n" +
 			" ├─ cacheable: true\n" +
-			" ├─ colSet: (4)\n" +
+			" ├─ colSet: (5)\n" +
 			" ├─ tableId: 4\n" +
 			" └─ Project\n" +
 			"     ├─ columns: [1 (tinyint)]\n" +
@@ -20478,8 +20609,8 @@ inner join pq on true
 			"                 ├─ outerVisibility: false\n" +
 			"                 ├─ isLateral: false\n" +
 			"                 ├─ cacheable: true\n" +
-			"                 ├─ colSet: (1)\n" +
-			"                 ├─ tableId: 2\n" +
+			"                 ├─ colSet: (3)\n" +
+			"                 ├─ tableId: 3\n" +
 			"                 └─ Union distinct\n" +
 			"                     ├─ Project\n" +
 			"                     │   ├─ columns: [1 (tinyint)]\n" +
@@ -20734,7 +20865,7 @@ inner join pq on true
 	{
 		Query: `With recursive a(x) as (select 1 union select 4 union select * from (select 2 union select 3) b union select x+1 from a where x < 10) select count(*) from a;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as count(*)]\n" +
+			" ├─ columns: [count(1):0!null->count(*):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint))\n" +
 			"     ├─ group: \n" +
@@ -20743,8 +20874,8 @@ inner join pq on true
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (6)\n" +
-			"         ├─ tableId: 5\n" +
+			"         ├─ colSet: (8)\n" +
+			"         ├─ tableId: 7\n" +
 			"         └─ RecursiveCTE\n" +
 			"             └─ Union distinct\n" +
 			"                 ├─ Union distinct\n" +
@@ -20786,7 +20917,7 @@ inner join pq on true
 			"                 │                   ├─ colSet: ()\n" +
 			"                 │                   └─ tableId: 0\n" +
 			"                 └─ Project\n" +
-			"                     ├─ columns: [(a.x:0!null + 1 (tinyint)) as x+1]\n" +
+			"                     ├─ columns: [(a.x:0!null + 1 (tinyint))->x+1:0]\n" +
 			"                     └─ Filter\n" +
 			"                         ├─ LessThan\n" +
 			"                         │   ├─ a.x:0!null\n" +
@@ -20887,8 +21018,8 @@ inner join pq on true
 			" │   │   ├─ outerVisibility: false\n" +
 			" │   │   ├─ isLateral: false\n" +
 			" │   │   ├─ cacheable: true\n" +
-			" │   │   ├─ colSet: (2)\n" +
-			" │   │   ├─ tableId: 1\n" +
+			" │   │   ├─ colSet: (5)\n" +
+			" │   │   ├─ tableId: 2\n" +
 			" │   │   └─ Project\n" +
 			" │   │       ├─ columns: [1 (tinyint)]\n" +
 			" │   │       └─ Table\n" +
@@ -20902,8 +21033,8 @@ inner join pq on true
 			" │           ├─ outerVisibility: false\n" +
 			" │           ├─ isLateral: false\n" +
 			" │           ├─ cacheable: true\n" +
-			" │           ├─ colSet: (4)\n" +
-			" │           ├─ tableId: 3\n" +
+			" │           ├─ colSet: (6)\n" +
+			" │           ├─ tableId: 4\n" +
 			" │           └─ Project\n" +
 			" │               ├─ columns: [2 (tinyint)]\n" +
 			" │               └─ Table\n" +
@@ -20916,8 +21047,8 @@ inner join pq on true
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (2)\n" +
-			"     ├─ tableId: 1\n" +
+			"     ├─ colSet: (7)\n" +
+			"     ├─ tableId: 3\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [1 (tinyint)]\n" +
 			"         └─ Table\n" +
@@ -20996,7 +21127,7 @@ inner join pq on true
 			" ├─ limit: 1\n" +
 			" ├─ Union distinct\n" +
 			" │   ├─ Project\n" +
-			" │   │   ├─ columns: [t1.j:0!null as k]\n" +
+			" │   │   ├─ columns: [t1.j:0!null->k:0]\n" +
 			" │   │   └─ HashJoin\n" +
 			" │   │       ├─ Eq\n" +
 			" │   │       │   ├─ t1.j:0!null\n" +
@@ -21037,8 +21168,8 @@ inner join pq on true
 			" │       ├─ outerVisibility: false\n" +
 			" │       ├─ isLateral: false\n" +
 			" │       ├─ cacheable: true\n" +
-			" │       ├─ colSet: (4)\n" +
-			" │       ├─ tableId: 3\n" +
+			" │       ├─ colSet: (8)\n" +
+			" │       ├─ tableId: 4\n" +
 			" │       └─ Project\n" +
 			" │           ├─ columns: [2 (tinyint)]\n" +
 			" │           └─ Table\n" +
@@ -21051,8 +21182,8 @@ inner join pq on true
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (2)\n" +
-			"     ├─ tableId: 1\n" +
+			"     ├─ colSet: (9)\n" +
+			"     ├─ tableId: 4\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [1 (tinyint)]\n" +
 			"         └─ Table\n" +
@@ -21165,7 +21296,7 @@ inner join pq on true
 			" ├─ limit: 2\n" +
 			" ├─ Union distinct\n" +
 			" │   ├─ Project\n" +
-			" │   │   ├─ columns: [t1.j:0!null as k]\n" +
+			" │   │   ├─ columns: [t1.j:0!null->k:0]\n" +
 			" │   │   └─ HashJoin\n" +
 			" │   │       ├─ Eq\n" +
 			" │   │       │   ├─ t1.j:0!null\n" +
@@ -21238,8 +21369,8 @@ inner join pq on true
 			" │       ├─ outerVisibility: false\n" +
 			" │       ├─ isLateral: false\n" +
 			" │       ├─ cacheable: true\n" +
-			" │       ├─ colSet: (7)\n" +
-			" │       ├─ tableId: 6\n" +
+			" │       ├─ colSet: (11)\n" +
+			" │       ├─ tableId: 7\n" +
 			" │       └─ Union distinct\n" +
 			" │           ├─ Project\n" +
 			" │           │   ├─ columns: [2 (tinyint)]\n" +
@@ -21260,8 +21391,8 @@ inner join pq on true
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (4)\n" +
-			"     ├─ tableId: 3\n" +
+			"     ├─ colSet: (12)\n" +
+			"     ├─ tableId: 6\n" +
 			"     └─ Union distinct\n" +
 			"         ├─ Union distinct\n" +
 			"         │   ├─ Project\n" +
@@ -21464,8 +21595,8 @@ inner join pq on true
 			" │   │   ├─ outerVisibility: false\n" +
 			" │   │   ├─ isLateral: false\n" +
 			" │   │   ├─ cacheable: true\n" +
-			" │   │   ├─ colSet: (2)\n" +
-			" │   │   ├─ tableId: 1\n" +
+			" │   │   ├─ colSet: (5)\n" +
+			" │   │   ├─ tableId: 2\n" +
 			" │   │   └─ Project\n" +
 			" │   │       ├─ columns: [1 (tinyint)]\n" +
 			" │   │       └─ Table\n" +
@@ -21478,8 +21609,8 @@ inner join pq on true
 			" │       ├─ outerVisibility: false\n" +
 			" │       ├─ isLateral: false\n" +
 			" │       ├─ cacheable: true\n" +
-			" │       ├─ colSet: (4)\n" +
-			" │       ├─ tableId: 3\n" +
+			" │       ├─ colSet: (6)\n" +
+			" │       ├─ tableId: 4\n" +
 			" │       └─ Project\n" +
 			" │           ├─ columns: [2 (tinyint)]\n" +
 			" │           └─ Table\n" +
@@ -21492,8 +21623,8 @@ inner join pq on true
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (2)\n" +
-			"     ├─ tableId: 1\n" +
+			"     ├─ colSet: (7)\n" +
+			"     ├─ tableId: 3\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [1 (tinyint)]\n" +
 			"         └─ Table\n" +
@@ -21578,8 +21709,8 @@ inner join pq on true
 			" │   │   ├─ outerVisibility: false\n" +
 			" │   │   ├─ isLateral: false\n" +
 			" │   │   ├─ cacheable: true\n" +
-			" │   │   ├─ colSet: (2)\n" +
-			" │   │   ├─ tableId: 1\n" +
+			" │   │   ├─ colSet: (5)\n" +
+			" │   │   ├─ tableId: 2\n" +
 			" │   │   └─ Project\n" +
 			" │   │       ├─ columns: [1 (tinyint)]\n" +
 			" │   │       └─ Table\n" +
@@ -21592,8 +21723,8 @@ inner join pq on true
 			" │       ├─ outerVisibility: false\n" +
 			" │       ├─ isLateral: false\n" +
 			" │       ├─ cacheable: true\n" +
-			" │       ├─ colSet: (4)\n" +
-			" │       ├─ tableId: 3\n" +
+			" │       ├─ colSet: (6)\n" +
+			" │       ├─ tableId: 4\n" +
 			" │       └─ Project\n" +
 			" │           ├─ columns: [2 (tinyint)]\n" +
 			" │           └─ Table\n" +
@@ -21606,8 +21737,8 @@ inner join pq on true
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (2)\n" +
-			"     ├─ tableId: 1\n" +
+			"     ├─ colSet: (7)\n" +
+			"     ├─ tableId: 3\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [1 (tinyint)]\n" +
 			"         └─ Table\n" +
@@ -21690,8 +21821,8 @@ inner join pq on true
 			" │   │   ├─ outerVisibility: false\n" +
 			" │   │   ├─ isLateral: false\n" +
 			" │   │   ├─ cacheable: true\n" +
-			" │   │   ├─ colSet: (2)\n" +
-			" │   │   ├─ tableId: 1\n" +
+			" │   │   ├─ colSet: (5)\n" +
+			" │   │   ├─ tableId: 2\n" +
 			" │   │   └─ Project\n" +
 			" │   │       ├─ columns: [1 (tinyint)]\n" +
 			" │   │       └─ Table\n" +
@@ -21704,8 +21835,8 @@ inner join pq on true
 			" │       ├─ outerVisibility: false\n" +
 			" │       ├─ isLateral: false\n" +
 			" │       ├─ cacheable: true\n" +
-			" │       ├─ colSet: (4)\n" +
-			" │       ├─ tableId: 3\n" +
+			" │       ├─ colSet: (6)\n" +
+			" │       ├─ tableId: 4\n" +
 			" │       └─ Project\n" +
 			" │           ├─ columns: [1 (tinyint)]\n" +
 			" │           └─ Table\n" +
@@ -21718,8 +21849,8 @@ inner join pq on true
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (2)\n" +
-			"     ├─ tableId: 1\n" +
+			"     ├─ colSet: (7)\n" +
+			"     ├─ tableId: 3\n" +
 			"     └─ Project\n" +
 			"         ├─ columns: [1 (tinyint)]\n" +
 			"         └─ Table\n" +
@@ -21814,8 +21945,8 @@ With c as (
 			" ├─ outerVisibility: false\n" +
 			" ├─ isLateral: false\n" +
 			" ├─ cacheable: true\n" +
-			" ├─ colSet: (12)\n" +
-			" ├─ tableId: 7\n" +
+			" ├─ colSet: (13)\n" +
+			" ├─ tableId: 8\n" +
 			" └─ SubqueryAlias\n" +
 			"     ├─ name: d\n" +
 			"     ├─ outerVisibility: false\n" +
@@ -22698,7 +22829,7 @@ WHERE keyless.c0 IN (
    WHERE cte.j = keyless.c0
 );`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as COUNT(*)]\n" +
+			" ├─ columns: [count(1):0!null->COUNT(*):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint))\n" +
 			"     ├─ group: \n" +
@@ -22720,8 +22851,8 @@ WHERE keyless.c0 IN (
 			"         │                   │   ├─ outerVisibility: true\n" +
 			"         │                   │   ├─ isLateral: false\n" +
 			"         │                   │   ├─ cacheable: true\n" +
-			"         │                   │   ├─ colSet: (6-8)\n" +
-			"         │                   │   ├─ tableId: 3\n" +
+			"         │                   │   ├─ colSet: (16-18)\n" +
+			"         │                   │   ├─ tableId: 5\n" +
 			"         │                   │   └─ RecursiveCTE\n" +
 			"         │                   │       └─ Union all\n" +
 			"         │                   │           ├─ Project\n" +
@@ -22737,21 +22868,18 @@ WHERE keyless.c0 IN (
 			"         │                   │           │               ├─ colSet: (3,4)\n" +
 			"         │                   │           │               └─ tableId: 2\n" +
 			"         │                   │           └─ Project\n" +
-			"         │                   │               ├─ columns: [(cte.depth:2!null + 1 (tinyint)) as cte.depth + 1, cte.i:3, (t2.c1:6 + 1 (tinyint)) as T2.c1 + 1]\n" +
-			"         │                   │               └─ HashJoin\n" +
+			"         │                   │               ├─ columns: [(cte.depth:4!null + 1 (tinyint))->cte.depth + 1:0, cte.i:5, (t2.c1:3 + 1 (tinyint))->T2.c1 + 1:0]\n" +
+			"         │                   │               └─ InnerJoin\n" +
 			"         │                   │                   ├─ Eq\n" +
-			"         │                   │                   │   ├─ cte.depth:2!null\n" +
-			"         │                   │                   │   └─ t2.c0:5\n" +
-			"         │                   │                   ├─ RecursiveTable(cte)\n" +
-			"         │                   │                   └─ HashLookup\n" +
-			"         │                   │                       ├─ left-key: TUPLE(cte.depth:2!null)\n" +
-			"         │                   │                       ├─ right-key: TUPLE(t2.c0:2)\n" +
-			"         │                   │                       └─ TableAlias(t2)\n" +
-			"         │                   │                           └─ Table\n" +
-			"         │                   │                               ├─ name: keyless\n" +
-			"         │                   │                               ├─ columns: [c0 c1]\n" +
-			"         │                   │                               ├─ colSet: (9,10)\n" +
-			"         │                   │                               └─ tableId: 5\n" +
+			"         │                   │                   │   ├─ cte.depth:4!null\n" +
+			"         │                   │                   │   └─ t2.c0:2\n" +
+			"         │                   │                   ├─ TableAlias(t2)\n" +
+			"         │                   │                   │   └─ Table\n" +
+			"         │                   │                   │       ├─ name: keyless\n" +
+			"         │                   │                   │       ├─ columns: [c0 c1]\n" +
+			"         │                   │                   │       ├─ colSet: (12,13)\n" +
+			"         │                   │                   │       └─ tableId: 5\n" +
+			"         │                   │                   └─ RecursiveTable(cte)\n" +
 			"         │                   └─ HashLookup\n" +
 			"         │                       ├─ left-key: TUPLE()\n" +
 			"         │                       ├─ right-key: TUPLE()\n" +
@@ -22759,7 +22887,7 @@ WHERE keyless.c0 IN (
 			"         │                           └─ Table\n" +
 			"         │                               ├─ name: keyless\n" +
 			"         │                               ├─ columns: [c0]\n" +
-			"         │                               ├─ colSet: (11,12)\n" +
+			"         │                               ├─ colSet: (14,15)\n" +
 			"         │                               └─ tableId: 7\n" +
 			"         └─ ProcessTable\n" +
 			"             └─ Table\n" +
@@ -22798,16 +22926,13 @@ WHERE keyless.c0 IN (
 			"         │                   │           │               └─ columns: [c0 c1]\n" +
 			"         │                   │           └─ Project\n" +
 			"         │                   │               ├─ columns: [(cte.depth + 1) as cte.depth + 1, cte.i, (t2.c1 + 1) as T2.c1 + 1]\n" +
-			"         │                   │               └─ HashJoin\n" +
+			"         │                   │               └─ InnerJoin\n" +
 			"         │                   │                   ├─ (cte.depth = t2.c0)\n" +
-			"         │                   │                   ├─ RecursiveTable(cte)\n" +
-			"         │                   │                   └─ HashLookup\n" +
-			"         │                   │                       ├─ left-key: (cte.depth)\n" +
-			"         │                   │                       ├─ right-key: (t2.c0)\n" +
-			"         │                   │                       └─ TableAlias(t2)\n" +
-			"         │                   │                           └─ Table\n" +
-			"         │                   │                               ├─ name: keyless\n" +
-			"         │                   │                               └─ columns: [c0 c1]\n" +
+			"         │                   │                   ├─ TableAlias(t2)\n" +
+			"         │                   │                   │   └─ Table\n" +
+			"         │                   │                   │       ├─ name: keyless\n" +
+			"         │                   │                   │       └─ columns: [c0 c1]\n" +
+			"         │                   │                   └─ RecursiveTable(cte)\n" +
 			"         │                   └─ HashLookup\n" +
 			"         │                       ├─ left-key: ()\n" +
 			"         │                       ├─ right-key: ()\n" +
@@ -22850,16 +22975,13 @@ WHERE keyless.c0 IN (
 			"         │                   │           │               └─ columns: [c0 c1]\n" +
 			"         │                   │           └─ Project\n" +
 			"         │                   │               ├─ columns: [(cte.depth + 1) as cte.depth + 1, cte.i, (t2.c1 + 1) as T2.c1 + 1]\n" +
-			"         │                   │               └─ HashJoin\n" +
+			"         │                   │               └─ InnerJoin\n" +
 			"         │                   │                   ├─ (cte.depth = t2.c0)\n" +
-			"         │                   │                   ├─ RecursiveTable(cte)\n" +
-			"         │                   │                   └─ HashLookup\n" +
-			"         │                   │                       ├─ left-key: (cte.depth)\n" +
-			"         │                   │                       ├─ right-key: (t2.c0)\n" +
-			"         │                   │                       └─ TableAlias(t2)\n" +
-			"         │                   │                           └─ Table\n" +
-			"         │                   │                               ├─ name: keyless\n" +
-			"         │                   │                               └─ columns: [c0 c1]\n" +
+			"         │                   │                   ├─ TableAlias(t2)\n" +
+			"         │                   │                   │   └─ Table\n" +
+			"         │                   │                   │       ├─ name: keyless\n" +
+			"         │                   │                   │       └─ columns: [c0 c1]\n" +
+			"         │                   │                   └─ RecursiveTable(cte)\n" +
 			"         │                   └─ HashLookup\n" +
 			"         │                       ├─ left-key: ()\n" +
 			"         │                       ├─ right-key: ()\n" +
@@ -22893,7 +23015,7 @@ WHERE keyless.c0 IN (
    WHERE cte.j = keyless.c0
 );`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [count(1):0!null as COUNT(*)]\n" +
+			" ├─ columns: [count(1):0!null->COUNT(*):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: COUNT(1 (bigint))\n" +
 			"     ├─ group: \n" +
@@ -22915,8 +23037,8 @@ WHERE keyless.c0 IN (
 			"         │                   │   ├─ outerVisibility: true\n" +
 			"         │                   │   ├─ isLateral: false\n" +
 			"         │                   │   ├─ cacheable: true\n" +
-			"         │                   │   ├─ colSet: (6-8)\n" +
-			"         │                   │   ├─ tableId: 3\n" +
+			"         │                   │   ├─ colSet: (14-16)\n" +
+			"         │                   │   ├─ tableId: 5\n" +
 			"         │                   │   └─ RecursiveCTE\n" +
 			"         │                   │       └─ Union all\n" +
 			"         │                   │           ├─ Project\n" +
@@ -22932,21 +23054,18 @@ WHERE keyless.c0 IN (
 			"         │                   │           │               ├─ colSet: (3,4)\n" +
 			"         │                   │           │               └─ tableId: 2\n" +
 			"         │                   │           └─ Project\n" +
-			"         │                   │               ├─ columns: [(cte.depth:2!null + 1 (tinyint)) as cte.depth + 1, cte.i:3, (t2.c1:6 + 1 (tinyint)) as T2.c1 + 1]\n" +
-			"         │                   │               └─ HashJoin\n" +
+			"         │                   │               ├─ columns: [(cte.depth:4!null + 1 (tinyint))->cte.depth + 1:0, cte.i:5, (t2.c1:3 + 1 (tinyint))->T2.c1 + 1:0]\n" +
+			"         │                   │               └─ InnerJoin\n" +
 			"         │                   │                   ├─ Eq\n" +
-			"         │                   │                   │   ├─ cte.depth:2!null\n" +
-			"         │                   │                   │   └─ t2.c0:5\n" +
-			"         │                   │                   ├─ RecursiveTable(cte)\n" +
-			"         │                   │                   └─ HashLookup\n" +
-			"         │                   │                       ├─ left-key: TUPLE(cte.depth:2!null)\n" +
-			"         │                   │                       ├─ right-key: TUPLE(t2.c0:2)\n" +
-			"         │                   │                       └─ TableAlias(t2)\n" +
-			"         │                   │                           └─ Table\n" +
-			"         │                   │                               ├─ name: keyless\n" +
-			"         │                   │                               ├─ columns: [c0 c1]\n" +
-			"         │                   │                               ├─ colSet: (9,10)\n" +
-			"         │                   │                               └─ tableId: 5\n" +
+			"         │                   │                   │   ├─ cte.depth:4!null\n" +
+			"         │                   │                   │   └─ t2.c0:2\n" +
+			"         │                   │                   ├─ TableAlias(t2)\n" +
+			"         │                   │                   │   └─ Table\n" +
+			"         │                   │                   │       ├─ name: keyless\n" +
+			"         │                   │                   │       ├─ columns: [c0 c1]\n" +
+			"         │                   │                   │       ├─ colSet: (12,13)\n" +
+			"         │                   │                   │       └─ tableId: 5\n" +
+			"         │                   │                   └─ RecursiveTable(cte)\n" +
 			"         │                   └─ HashLookup\n" +
 			"         │                       ├─ left-key: TUPLE()\n" +
 			"         │                       ├─ right-key: TUPLE()\n" +
@@ -22954,7 +23073,7 @@ WHERE keyless.c0 IN (
 			"         │                           └─ Table\n" +
 			"         │                               ├─ name: keyless\n" +
 			"         │                               ├─ columns: [c0]\n" +
-			"         │                               ├─ colSet: (11,12)\n" +
+			"         │                               ├─ colSet: (17,18)\n" +
 			"         │                               └─ tableId: 7\n" +
 			"         └─ ProcessTable\n" +
 			"             └─ Table\n" +
@@ -22993,16 +23112,13 @@ WHERE keyless.c0 IN (
 			"         │                   │           │               └─ columns: [c0 c1]\n" +
 			"         │                   │           └─ Project\n" +
 			"         │                   │               ├─ columns: [(cte.depth + 1) as cte.depth + 1, cte.i, (t2.c1 + 1) as T2.c1 + 1]\n" +
-			"         │                   │               └─ HashJoin\n" +
+			"         │                   │               └─ InnerJoin\n" +
 			"         │                   │                   ├─ (cte.depth = t2.c0)\n" +
-			"         │                   │                   ├─ RecursiveTable(cte)\n" +
-			"         │                   │                   └─ HashLookup\n" +
-			"         │                   │                       ├─ left-key: (cte.depth)\n" +
-			"         │                   │                       ├─ right-key: (t2.c0)\n" +
-			"         │                   │                       └─ TableAlias(t2)\n" +
-			"         │                   │                           └─ Table\n" +
-			"         │                   │                               ├─ name: keyless\n" +
-			"         │                   │                               └─ columns: [c0 c1]\n" +
+			"         │                   │                   ├─ TableAlias(t2)\n" +
+			"         │                   │                   │   └─ Table\n" +
+			"         │                   │                   │       ├─ name: keyless\n" +
+			"         │                   │                   │       └─ columns: [c0 c1]\n" +
+			"         │                   │                   └─ RecursiveTable(cte)\n" +
 			"         │                   └─ HashLookup\n" +
 			"         │                       ├─ left-key: ()\n" +
 			"         │                       ├─ right-key: ()\n" +
@@ -23045,16 +23161,13 @@ WHERE keyless.c0 IN (
 			"         │                   │           │               └─ columns: [c0 c1]\n" +
 			"         │                   │           └─ Project\n" +
 			"         │                   │               ├─ columns: [(cte.depth + 1) as cte.depth + 1, cte.i, (t2.c1 + 1) as T2.c1 + 1]\n" +
-			"         │                   │               └─ HashJoin\n" +
+			"         │                   │               └─ InnerJoin\n" +
 			"         │                   │                   ├─ (cte.depth = t2.c0)\n" +
-			"         │                   │                   ├─ RecursiveTable(cte)\n" +
-			"         │                   │                   └─ HashLookup\n" +
-			"         │                   │                       ├─ left-key: (cte.depth)\n" +
-			"         │                   │                       ├─ right-key: (t2.c0)\n" +
-			"         │                   │                       └─ TableAlias(t2)\n" +
-			"         │                   │                           └─ Table\n" +
-			"         │                   │                               ├─ name: keyless\n" +
-			"         │                   │                               └─ columns: [c0 c1]\n" +
+			"         │                   │                   ├─ TableAlias(t2)\n" +
+			"         │                   │                   │   └─ Table\n" +
+			"         │                   │                   │       ├─ name: keyless\n" +
+			"         │                   │                   │       └─ columns: [c0 c1]\n" +
+			"         │                   │                   └─ RecursiveTable(cte)\n" +
 			"         │                   └─ HashLookup\n" +
 			"         │                       ├─ left-key: ()\n" +
 			"         │                       ├─ right-key: ()\n" +
@@ -23253,7 +23366,7 @@ WHERE keyless.c0 IN (
 	{
 		Query: `select pk1, pk2, row_number() over (partition by pk1 order by c1 desc) from two_pk order by 1,2;`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [two_pk.pk1:1!null, two_pk.pk2:2!null, row_number() over ( partition by two_pk.pk1 order by two_pk.c1 desc):0!null as row_number() over (partition by pk1 order by c1 desc)]\n" +
+			" ├─ columns: [two_pk.pk1:1!null, two_pk.pk2:2!null, row_number() over ( partition by two_pk.pk1 order by two_pk.c1 desc):0!null->row_number() over (partition by pk1 order by c1 desc):0]\n" +
 			" └─ Sort(two_pk.pk1:1!null ASC nullsFirst, two_pk.pk2:2!null ASC nullsFirst)\n" +
 			"     └─ Window\n" +
 			"         ├─ row_number() over ( partition by two_pk.pk1 order by two_pk.c1 DESC)\n" +
@@ -23674,9 +23787,9 @@ WHERE keyless.c0 IN (
 	{
 		Query: `select x as xx, y as yy from xy_hasnull_idx order by yy desc`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [xy_hasnull_idx.x:0!null as xx, xy_hasnull_idx.y:1 as yy]\n" +
+			" ├─ columns: [xy_hasnull_idx.x:0!null->xx:0, xy_hasnull_idx.y:1->yy:0]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy_hasnull_idx.x:0!null, xy_hasnull_idx.y:1, xy_hasnull_idx.x:0!null as xx, xy_hasnull_idx.y:1 as yy]\n" +
+			"     ├─ columns: [xy_hasnull_idx.x:0!null, xy_hasnull_idx.y:1, xy_hasnull_idx.x:0!null->xx:0, xy_hasnull_idx.y:1->yy:0]\n" +
 			"     └─ IndexedTableAccess(xy_hasnull_idx)\n" +
 			"         ├─ index: [xy_hasnull_idx.y]\n" +
 			"         ├─ static: [{[NULL, ∞)}]\n" +
@@ -23711,9 +23824,9 @@ WHERE keyless.c0 IN (
 	{
 		Query: `select x as xx, y as yy from xy_hasnull_idx order by YY desc`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [xy_hasnull_idx.x:0!null as xx, xy_hasnull_idx.y:1 as yy]\n" +
+			" ├─ columns: [xy_hasnull_idx.x:0!null->xx:0, xy_hasnull_idx.y:1->yy:0]\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy_hasnull_idx.x:0!null, xy_hasnull_idx.y:1, xy_hasnull_idx.x:0!null as xx, xy_hasnull_idx.y:1 as yy]\n" +
+			"     ├─ columns: [xy_hasnull_idx.x:0!null, xy_hasnull_idx.y:1, xy_hasnull_idx.x:0!null->xx:0, xy_hasnull_idx.y:1->yy:0]\n" +
 			"     └─ IndexedTableAccess(xy_hasnull_idx)\n" +
 			"         ├─ index: [xy_hasnull_idx.y]\n" +
 			"         ├─ static: [{[NULL, ∞)}]\n" +
@@ -23774,7 +23887,7 @@ WHERE keyless.c0 IN (
 		Query: `select max(x) from xy`,
 		ExpectedPlan: "Limit(1)\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy.x:0!null as max(x)]\n" +
+			"     ├─ columns: [xy.x:0!null->max(x):0]\n" +
 			"     └─ IndexedTableAccess(xy)\n" +
 			"         ├─ index: [xy.x]\n" +
 			"         ├─ static: [{[NULL, ∞)}]\n" +
@@ -23808,7 +23921,7 @@ WHERE keyless.c0 IN (
 		Query: `select min(x) from xy`,
 		ExpectedPlan: "Limit(1)\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy.x:0!null as min(x)]\n" +
+			"     ├─ columns: [xy.x:0!null->min(x):0]\n" +
 			"     └─ IndexedTableAccess(xy)\n" +
 			"         ├─ index: [xy.x]\n" +
 			"         ├─ static: [{[NULL, ∞)}]\n" +
@@ -23838,7 +23951,7 @@ WHERE keyless.c0 IN (
 	{
 		Query: `select max(y) from xy`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [max(xy.y):0!null as max(y)]\n" +
+			" ├─ columns: [max(xy.y):0!null->max(y):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: MAX(xy.y:0)\n" +
 			"     ├─ group: \n" +
@@ -23870,7 +23983,7 @@ WHERE keyless.c0 IN (
 		Query: `select max(x)+100 from xy`,
 		ExpectedPlan: "Limit(1)\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [(xy.x:0!null + 100 (tinyint)) as max(x)+100]\n" +
+			"     ├─ columns: [(xy.x:0!null + 100 (tinyint))->max(x)+100:0]\n" +
 			"     └─ IndexedTableAccess(xy)\n" +
 			"         ├─ index: [xy.x]\n" +
 			"         ├─ static: [{[NULL, ∞)}]\n" +
@@ -23904,7 +24017,7 @@ WHERE keyless.c0 IN (
 		Query: `select max(x) as xx from xy`,
 		ExpectedPlan: "Limit(1)\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy.x:0!null as xx]\n" +
+			"     ├─ columns: [xy.x:0!null->xx:0]\n" +
 			"     └─ IndexedTableAccess(xy)\n" +
 			"         ├─ index: [xy.x]\n" +
 			"         ├─ static: [{[NULL, ∞)}]\n" +
@@ -23938,7 +24051,7 @@ WHERE keyless.c0 IN (
 		Query: `select 1, 2.0, '3', max(x) from xy`,
 		ExpectedPlan: "Limit(1)\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [1 (tinyint), 2 (decimal(2,1)), 3 (longtext), xy.x:0!null as max(x)]\n" +
+			"     ├─ columns: [1 (tinyint), 2 (decimal(2,1)), 3 (longtext), xy.x:0!null->max(x):0]\n" +
 			"     └─ IndexedTableAccess(xy)\n" +
 			"         ├─ index: [xy.x]\n" +
 			"         ├─ static: [{[NULL, ∞)}]\n" +
@@ -23972,7 +24085,7 @@ WHERE keyless.c0 IN (
 		Query: `select min(x) from xy where x > 0`,
 		ExpectedPlan: "Limit(1)\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy.x:0!null as min(x)]\n" +
+			"     ├─ columns: [xy.x:0!null->min(x):0]\n" +
 			"     └─ IndexedTableAccess(xy)\n" +
 			"         ├─ index: [xy.x]\n" +
 			"         ├─ static: [{(0, ∞)}]\n" +
@@ -24003,7 +24116,7 @@ WHERE keyless.c0 IN (
 		Query: `select max(x) from xy where x < 3`,
 		ExpectedPlan: "Limit(1)\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [xy.x:0!null as max(x)]\n" +
+			"     ├─ columns: [xy.x:0!null->max(x):0]\n" +
 			"     └─ IndexedTableAccess(xy)\n" +
 			"         ├─ index: [xy.x]\n" +
 			"         ├─ static: [{(NULL, 3)}]\n" +
@@ -24036,7 +24149,7 @@ WHERE keyless.c0 IN (
 	{
 		Query: `select min(x) from xy where y > 0`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [min(xy.x):0!null as min(x)]\n" +
+			" ├─ columns: [min(xy.x):0!null->min(x):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: MIN(xy.x:0!null)\n" +
 			"     ├─ group: \n" +
@@ -24073,7 +24186,7 @@ WHERE keyless.c0 IN (
 	{
 		Query: `select max(x) from xy where y < 3`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [max(xy.x):0!null as max(x)]\n" +
+			" ├─ columns: [max(xy.x):0!null->max(x):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: MAX(xy.x:0!null)\n" +
 			"     ├─ group: \n" +
@@ -24118,7 +24231,7 @@ WHERE keyless.c0 IN (
 			" ├─ tableId: 2\n" +
 			" └─ Limit(1)\n" +
 			"     └─ Project\n" +
-			"         ├─ columns: [xy.x:0!null as max(x)]\n" +
+			"         ├─ columns: [xy.x:0!null->max(x):0]\n" +
 			"         └─ IndexedTableAccess(xy)\n" +
 			"             ├─ index: [xy.x]\n" +
 			"             ├─ static: [{[NULL, ∞)}]\n" +
@@ -24161,17 +24274,17 @@ WHERE keyless.c0 IN (
 	{
 		Query: `with cte(i) as (select max(x) from xy) select i + 100 from cte`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [(cte.i:0!null + 100 (tinyint)) as i + 100]\n" +
+			" ├─ columns: [(cte.i:0!null + 100 (tinyint))->i + 100:0]\n" +
 			" └─ SubqueryAlias\n" +
 			"     ├─ name: cte\n" +
 			"     ├─ outerVisibility: false\n" +
 			"     ├─ isLateral: false\n" +
 			"     ├─ cacheable: true\n" +
-			"     ├─ colSet: (4)\n" +
-			"     ├─ tableId: 2\n" +
+			"     ├─ colSet: (5)\n" +
+			"     ├─ tableId: 3\n" +
 			"     └─ Limit(1)\n" +
 			"         └─ Project\n" +
-			"             ├─ columns: [xy.x:0!null as max(x)]\n" +
+			"             ├─ columns: [xy.x:0!null->max(x):0]\n" +
 			"             └─ IndexedTableAccess(xy)\n" +
 			"                 ├─ index: [xy.x]\n" +
 			"                 ├─ static: [{[NULL, ∞)}]\n" +
@@ -24218,7 +24331,7 @@ WHERE keyless.c0 IN (
 	{
 		Query: `with cte(i) as (select x from xy) select max(i) from cte`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [max(cte.i):0!null as max(i)]\n" +
+			" ├─ columns: [max(cte.i):0!null->max(i):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: MAX(cte.i:0!null)\n" +
 			"     ├─ group: \n" +
@@ -24227,8 +24340,8 @@ WHERE keyless.c0 IN (
 			"         ├─ outerVisibility: false\n" +
 			"         ├─ isLateral: false\n" +
 			"         ├─ cacheable: true\n" +
-			"         ├─ colSet: (3)\n" +
-			"         ├─ tableId: 2\n" +
+			"         ├─ colSet: (4)\n" +
+			"         ├─ tableId: 3\n" +
 			"         └─ Table\n" +
 			"             ├─ name: xy\n" +
 			"             ├─ columns: [x]\n" +
@@ -24267,7 +24380,7 @@ WHERE keyless.c0 IN (
 	{
 		Query: `select max(x) from xy group by y`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [max(xy.x):0!null as max(x)]\n" +
+			" ├─ columns: [max(xy.x):0!null->max(x):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: MAX(xy.x:0!null)\n" +
 			"     ├─ group: xy.y:1\n" +
@@ -24298,7 +24411,7 @@ WHERE keyless.c0 IN (
 	{
 		Query: `select max(x) from xy join uv where x = u`,
 		ExpectedPlan: "Project\n" +
-			" ├─ columns: [max(xy.x):0!null as max(x)]\n" +
+			" ├─ columns: [max(xy.x):0!null->max(x):0]\n" +
 			" └─ GroupBy\n" +
 			"     ├─ select: MAX(xy.x:1!null)\n" +
 			"     ├─ group: \n" +
@@ -24376,15 +24489,15 @@ order by i;`,
 			"             ├─ outerVisibility: false\n" +
 			"             ├─ isLateral: true\n" +
 			"             ├─ cacheable: true\n" +
-			"             ├─ colSet: (8)\n" +
+			"             ├─ colSet: (10)\n" +
 			"             ├─ tableId: 7\n" +
 			"             └─ SubqueryAlias\n" +
 			"                 ├─ name: cte\n" +
 			"                 ├─ outerVisibility: false\n" +
 			"                 ├─ isLateral: true\n" +
 			"                 ├─ cacheable: true\n" +
-			"                 ├─ colSet: (5)\n" +
-			"                 ├─ tableId: 3\n" +
+			"                 ├─ colSet: (9)\n" +
+			"                 ├─ tableId: 5\n" +
 			"                 └─ RecursiveCTE\n" +
 			"                     └─ Union distinct\n" +
 			"                         ├─ Table\n" +
@@ -24399,7 +24512,7 @@ order by i;`,
 			"                                 └─ IndexedTableAccess(xy)\n" +
 			"                                     ├─ index: [xy.x]\n" +
 			"                                     ├─ keys: [cte.a:2]\n" +
-			"                                     ├─ colSet: (6,7)\n" +
+			"                                     ├─ colSet: (7,8)\n" +
 			"                                     ├─ tableId: 5\n" +
 			"                                     └─ Table\n" +
 			"                                         ├─ name: xy\n" +
@@ -24502,15 +24615,15 @@ order by i;`,
 			"             ├─ outerVisibility: false\n" +
 			"             ├─ isLateral: true\n" +
 			"             ├─ cacheable: true\n" +
-			"             ├─ colSet: (10)\n" +
+			"             ├─ colSet: (12)\n" +
 			"             ├─ tableId: 8\n" +
 			"             └─ SubqueryAlias\n" +
 			"                 ├─ name: cte\n" +
 			"                 ├─ outerVisibility: false\n" +
 			"                 ├─ isLateral: true\n" +
 			"                 ├─ cacheable: true\n" +
-			"                 ├─ colSet: (5)\n" +
-			"                 ├─ tableId: 3\n" +
+			"                 ├─ colSet: (11)\n" +
+			"                 ├─ tableId: 5\n" +
 			"                 └─ RecursiveCTE\n" +
 			"                     └─ Union distinct\n" +
 			"                         ├─ limit: 3\n" +
@@ -24520,30 +24633,27 @@ order by i;`,
 			"                         │   ├─ colSet: (3,4)\n" +
 			"                         │   └─ tableId: 2\n" +
 			"                         └─ Project\n" +
-			"                             ├─ columns: [sqa1.x:3!null]\n" +
-			"                             └─ HashJoin\n" +
+			"                             ├─ columns: [sqa1.x:2!null]\n" +
+			"                             └─ InnerJoin\n" +
 			"                                 ├─ Eq\n" +
-			"                                 │   ├─ sqa1.x:3!null\n" +
-			"                                 │   └─ cte.a:2\n" +
-			"                                 ├─ RecursiveTable(cte)\n" +
-			"                                 └─ HashLookup\n" +
-			"                                     ├─ left-key: TUPLE(cte.a:2)\n" +
-			"                                     ├─ right-key: TUPLE(sqa1.x:2!null)\n" +
-			"                                     └─ SubqueryAlias\n" +
-			"                                         ├─ name: sqa1\n" +
-			"                                         ├─ outerVisibility: false\n" +
-			"                                         ├─ isLateral: true\n" +
-			"                                         ├─ cacheable: true\n" +
-			"                                         ├─ colSet: (8,9)\n" +
-			"                                         ├─ tableId: 6\n" +
-			"                                         └─ IndexedTableAccess(xy)\n" +
-			"                                             ├─ index: [xy.x]\n" +
-			"                                             ├─ static: [{[1, 1]}]\n" +
-			"                                             ├─ colSet: (6,7)\n" +
-			"                                             ├─ tableId: 5\n" +
-			"                                             └─ Table\n" +
-			"                                                 ├─ name: xy\n" +
-			"                                                 └─ columns: [x y]\n" +
+			"                                 │   ├─ sqa1.x:2!null\n" +
+			"                                 │   └─ cte.a:4\n" +
+			"                                 ├─ SubqueryAlias\n" +
+			"                                 │   ├─ name: sqa1\n" +
+			"                                 │   ├─ outerVisibility: false\n" +
+			"                                 │   ├─ isLateral: true\n" +
+			"                                 │   ├─ cacheable: true\n" +
+			"                                 │   ├─ colSet: (9,10)\n" +
+			"                                 │   ├─ tableId: 6\n" +
+			"                                 │   └─ IndexedTableAccess(xy)\n" +
+			"                                 │       ├─ index: [xy.x]\n" +
+			"                                 │       ├─ static: [{[1, 1]}]\n" +
+			"                                 │       ├─ colSet: (7,8)\n" +
+			"                                 │       ├─ tableId: 5\n" +
+			"                                 │       └─ Table\n" +
+			"                                 │           ├─ name: xy\n" +
+			"                                 │           └─ columns: [x y]\n" +
+			"                                 └─ RecursiveTable(cte)\n" +
 			"",
 		ExpectedEstimates: "Sort(mytable.i ASC)\n" +
 			" └─ Filter\n" +
@@ -24569,21 +24679,18 @@ order by i;`,
 			"                         │   └─ columns: [y]\n" +
 			"                         └─ Project\n" +
 			"                             ├─ columns: [sqa1.x]\n" +
-			"                             └─ HashJoin\n" +
+			"                             └─ InnerJoin\n" +
 			"                                 ├─ (sqa1.x = cte.a)\n" +
-			"                                 ├─ RecursiveTable(cte)\n" +
-			"                                 └─ HashLookup\n" +
-			"                                     ├─ left-key: (cte.a)\n" +
-			"                                     ├─ right-key: (sqa1.x)\n" +
-			"                                     └─ SubqueryAlias\n" +
-			"                                         ├─ name: sqa1\n" +
-			"                                         ├─ outerVisibility: false\n" +
-			"                                         ├─ isLateral: true\n" +
-			"                                         ├─ cacheable: true\n" +
-			"                                         └─ IndexedTableAccess(xy)\n" +
-			"                                             ├─ index: [xy.x]\n" +
-			"                                             ├─ filters: [{[1, 1]}]\n" +
-			"                                             └─ columns: [x y]\n" +
+			"                                 ├─ SubqueryAlias\n" +
+			"                                 │   ├─ name: sqa1\n" +
+			"                                 │   ├─ outerVisibility: false\n" +
+			"                                 │   ├─ isLateral: true\n" +
+			"                                 │   ├─ cacheable: true\n" +
+			"                                 │   └─ IndexedTableAccess(xy)\n" +
+			"                                 │       ├─ index: [xy.x]\n" +
+			"                                 │       ├─ filters: [{[1, 1]}]\n" +
+			"                                 │       └─ columns: [x y]\n" +
+			"                                 └─ RecursiveTable(cte)\n" +
 			"",
 		ExpectedAnalysis: "Sort(mytable.i ASC)\n" +
 			" └─ Filter\n" +
@@ -24609,21 +24716,18 @@ order by i;`,
 			"                         │   └─ columns: [y]\n" +
 			"                         └─ Project\n" +
 			"                             ├─ columns: [sqa1.x]\n" +
-			"                             └─ HashJoin\n" +
+			"                             └─ InnerJoin\n" +
 			"                                 ├─ (sqa1.x = cte.a)\n" +
-			"                                 ├─ RecursiveTable(cte)\n" +
-			"                                 └─ HashLookup\n" +
-			"                                     ├─ left-key: (cte.a)\n" +
-			"                                     ├─ right-key: (sqa1.x)\n" +
-			"                                     └─ SubqueryAlias\n" +
-			"                                         ├─ name: sqa1\n" +
-			"                                         ├─ outerVisibility: false\n" +
-			"                                         ├─ isLateral: true\n" +
-			"                                         ├─ cacheable: true\n" +
-			"                                         └─ IndexedTableAccess(xy)\n" +
-			"                                             ├─ index: [xy.x]\n" +
-			"                                             ├─ filters: [{[1, 1]}]\n" +
-			"                                             └─ columns: [x y]\n" +
+			"                                 ├─ SubqueryAlias\n" +
+			"                                 │   ├─ name: sqa1\n" +
+			"                                 │   ├─ outerVisibility: false\n" +
+			"                                 │   ├─ isLateral: true\n" +
+			"                                 │   ├─ cacheable: true\n" +
+			"                                 │   └─ IndexedTableAccess(xy)\n" +
+			"                                 │       ├─ index: [xy.x]\n" +
+			"                                 │       ├─ filters: [{[1, 1]}]\n" +
+			"                                 │       └─ columns: [x y]\n" +
+			"                                 └─ RecursiveTable(cte)\n" +
 			"",
 	},
 	{
@@ -24642,7 +24746,7 @@ order by xy.x, xy.y, uv.u, uv.v;`,
 			"         │       ├─ cacheable: false\n" +
 			"         │       ├─ alias-string: select max(v) from uv where xy.x = uv.u\n" +
 			"         │       └─ Project\n" +
-			"         │           ├─ columns: [max(uv.v):4!null as max(v)]\n" +
+			"         │           ├─ columns: [max(uv.v):4!null->max(v):0]\n" +
 			"         │           └─ GroupBy\n" +
 			"         │               ├─ select: MAX(uv.v:5)\n" +
 			"         │               ├─ group: \n" +
@@ -24740,7 +24844,7 @@ where exists (
 			" │       ├─ cacheable: false\n" +
 			" │       ├─ alias-string: select max(v) from uv where uv.v = ab2.a and uv.v = ab.a\n" +
 			" │       └─ Project\n" +
-			" │           ├─ columns: [max(uv.v):4!null as max(v)]\n" +
+			" │           ├─ columns: [max(uv.v):4!null->max(v):0]\n" +
 			" │           └─ GroupBy\n" +
 			" │               ├─ select: MAX(uv.v:4)\n" +
 			" │               ├─ group: \n" +
@@ -24832,7 +24936,7 @@ order by x, y;
 			"     │       ├─ cacheable: false\n" +
 			"     │       ├─ alias-string: select max(v) from uv where uv.v = xy2.x and uv.v = xy.x\n" +
 			"     │       └─ Project\n" +
-			"     │           ├─ columns: [max(uv.v):4!null as max(v)]\n" +
+			"     │           ├─ columns: [max(uv.v):4!null->max(v):0]\n" +
 			"     │           └─ GroupBy\n" +
 			"     │               ├─ select: MAX(uv.v:4)\n" +
 			"     │               ├─ group: \n" +
@@ -24919,7 +25023,7 @@ order by x, y;
 			"     │   ├─ colSet: (2)\n" +
 			"     │   ├─ tableId: 1\n" +
 			"     │   └─ Project\n" +
-			"     │       ├─ columns: [k (longtext) as k]\n" +
+			"     │       ├─ columns: [k (longtext)->k:1]\n" +
 			"     │       └─ Table\n" +
 			"     │           ├─ name: \n" +
 			"     │           ├─ columns: []\n" +
@@ -25376,7 +25480,7 @@ order by x, y;
 		Query: `select distinct pk1 + 1 from two_pk order by pk1 + 1`,
 		ExpectedPlan: "Distinct\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [(two_pk.pk1:0!null + 1 (tinyint)) as pk1 + 1]\n" +
+			"     ├─ columns: [(two_pk.pk1:0!null + 1 (tinyint))->pk1 + 1:0]\n" +
 			"     └─ Sort((two_pk.pk1:0!null + 1 (tinyint)) ASC nullsFirst)\n" +
 			"         └─ ProcessTable\n" +
 			"             └─ Table\n" +
@@ -25404,7 +25508,7 @@ order by x, y;
 		Query: `select distinct pk2 + 1 from two_pk order by pk2 + 1`,
 		ExpectedPlan: "Distinct\n" +
 			" └─ Project\n" +
-			"     ├─ columns: [(two_pk.pk2:0!null + 1 (tinyint)) as pk2 + 1]\n" +
+			"     ├─ columns: [(two_pk.pk2:0!null + 1 (tinyint))->pk2 + 1:0]\n" +
 			"     └─ Sort((two_pk.pk2:0!null + 1 (tinyint)) ASC nullsFirst)\n" +
 			"         └─ ProcessTable\n" +
 			"             └─ Table\n" +

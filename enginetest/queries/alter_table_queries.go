@@ -46,6 +46,19 @@ var AlterTableScripts = []ScriptTest{
 		},
 	},
 	{
+		Name: "issue 8917: exec error nested in block doesn't panic",
+		SetUpScript: []string{
+			"CREATE TABLE b(b int primary key)",
+			"CREATE TABLE a(a int primary key, b int, CONSTRAINT `fk` FOREIGN KEY (b) REFERENCES b (b))",
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query:       "alter table a add column c varchar(100), modify column b varchar(100)",
+				ExpectedErr: sql.ErrForeignKeyTypeChange,
+			},
+		},
+	},
+	{
 		Name: "variety of alter column statements in a single statement",
 		SetUpScript: []string{
 			"CREATE TABLE t32(pk BIGINT PRIMARY KEY, v1 int, v2 int, v3 int default (v1), toRename int)",
@@ -497,6 +510,22 @@ var AlterTableScripts = []ScriptTest{
 					"  PRIMARY KEY (`i`),\n" +
 					"  UNIQUE KEY `j` (`j`)\n" +
 					") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin"}},
+			},
+		},
+	},
+	{
+		Name: "add column with inline check constraint definition",
+		SetUpScript: []string{
+			"create table t (pk int primary key);",
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query:    "alter table t add column c int CONSTRAINT chk_c check(c > 10);",
+				Expected: []sql.Row{{types.NewOkResult(0)}},
+			},
+			{
+				Query:          "insert into t values (1, 9);",
+				ExpectedErrStr: `Check constraint "chk_c" violated`,
 			},
 		},
 	},
@@ -974,6 +1003,29 @@ var AlterTableScripts = []ScriptTest{
 			{
 				Query:    "select j from tt;",
 				Expected: []sql.Row{},
+			},
+		},
+	},
+	{
+		// https://github.com/dolthub/dolt/issues/9178
+		Name: "alter modify column type float to bigint",
+		SetUpScript: []string{
+			"create table t1 (pk int primary key, c1 float);",
+			"insert into t1 values (1, 0.0)",
+			"insert into t1 values (2, 127.9)",
+			"insert into t1 values (3, 42.1)",
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query: "alter table t1 modify column c1 bigint",
+			},
+			{
+				Query: "select * from t1 order by pk",
+				Expected: []sql.Row{
+					{1, int64(0)},
+					{2, int64(128)},
+					{3, int64(42)},
+				},
 			},
 		},
 	},

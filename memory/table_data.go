@@ -15,6 +15,7 @@
 package memory
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -115,7 +116,7 @@ func (td TableData) copy() *TableData {
 
 // partition returns the partition for the row given. Uses the primary key columns if they exist, or all columns
 // otherwise
-func (td TableData) partition(row sql.Row) (int, error) {
+func (td TableData) partition(ctx *sql.Context, row sql.Row) (int, error) {
 	var keyColumns []int
 	if len(td.schema.PkOrdinals) > 0 {
 		keyColumns = td.schema.PkOrdinals
@@ -139,7 +140,7 @@ func (td TableData) partition(row sql.Row) (int, error) {
 
 		t, isStringType := td.schema.Schema[keyColumns[i]].Type.(sql.StringType)
 		if isStringType && v != nil {
-			v, err = types.ConvertToString(v, t, nil)
+			v, err = types.ConvertToString(ctx, v, t, nil)
 			if err == nil {
 				err = t.Collation().WriteWeightString(hash, v.(string))
 			}
@@ -274,7 +275,7 @@ func (td *TableData) numRows(ctx *sql.Context) (uint64, error) {
 }
 
 // throws an error if any two or more rows share the same |cols| values.
-func (td *TableData) errIfDuplicateEntryExist(cols []string, idxName string) error {
+func (td *TableData) errIfDuplicateEntryExist(ctx context.Context, cols []string, idxName string) error {
 	columnMapping, err := td.columnIndexes(cols)
 
 	// We currently skip validating duplicates on unique virtual columns.
@@ -296,7 +297,7 @@ func (td *TableData) errIfDuplicateEntryExist(cols []string, idxName string) err
 			if hasNulls(idxPrefixKey) {
 				continue
 			}
-			h, err := sql.HashOf(idxPrefixKey)
+			h, err := sql.HashOf(ctx, idxPrefixKey)
 			if err != nil {
 				return err
 			}
@@ -368,7 +369,7 @@ func (td *TableData) indexColsForTableEditor() ([][]int, [][]uint16) {
 }
 
 // Sorts the rows in the partitions of the table to be in primary key order.
-func (td *TableData) sortRows() {
+func (td *TableData) sortRows(ctx *sql.Context) {
 	var pk []pkfield
 	for _, column := range td.schema.Schema {
 		if column.PrimaryKey {
@@ -390,12 +391,13 @@ func (td *TableData) sortRows() {
 		ps:      td.partitions,
 		allRows: flattenedRows,
 		indexes: td.secondaryIndexStorage,
+		ctx:     ctx,
 	})
 
-	td.sortSecondaryIndexes()
+	td.sortSecondaryIndexes(ctx)
 }
 
-func (td *TableData) sortSecondaryIndexes() {
+func (td *TableData) sortSecondaryIndexes(ctx *sql.Context) {
 	for idxName, idxStorage := range td.secondaryIndexStorage {
 		idx := td.indexes[strings.ToLower(string(idxName))].(*Index)
 		fieldIndexes := idx.columnIndexes(td.schema.Schema)
@@ -419,7 +421,7 @@ func (td *TableData) sortSecondaryIndexes() {
 					return false
 				}
 
-				compare, err := typ.Compare(left, right)
+				compare, err := typ.Compare(ctx, left, right)
 				if err != nil {
 					panic(err)
 				}

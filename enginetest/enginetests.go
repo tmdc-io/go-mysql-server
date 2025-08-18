@@ -263,7 +263,7 @@ func TestBrokenQueries(t *testing.T, harness Harness) {
 // queries during debugging.
 func RunQueryTests(t *testing.T, harness Harness, queries []queries.QueryTest) {
 	for _, tt := range queries {
-		TestQuery(t, harness, tt.Query, tt.Expected, tt.ExpectedColumns, nil)
+		testQuery(t, harness, tt.Query, tt.Expected, tt.ExpectedColumns, nil, tt.WrapBehavior)
 	}
 }
 
@@ -349,6 +349,95 @@ func TestInfoSchema(t *testing.T, h Harness) {
 			[]sql.Row{
 				{uint64(1), "root", "localhost"},
 				{uint64(2), "root", "otherhost"},
+			},
+			sql.Schema{
+				{Name: "id", Type: types.Uint64},
+				{Name: "uSeR", Type: types.MustCreateString(sqltypes.VarChar, 96, sql.Collation_Information_Schema_Default)},
+				{Name: "hOST", Type: types.MustCreateString(sqltypes.VarChar, 783, sql.Collation_Information_Schema_Default)},
+			},
+			nil, nil,
+		)
+	})
+
+	t.Run("information_schema.processlist projection with alias case", func(t *testing.T) {
+		e := mustNewEngine(t, h)
+		defer e.Close()
+
+		if IsServerEngine(e) {
+			t.Skip("skipping for server engine as the processlist returned from server differs")
+		}
+		p := sqle.NewProcessList()
+		p.AddConnection(1, "localhost")
+
+		ctx := NewContext(h)
+		ctx.Session.SetClient(sql.Client{Address: "localhost", User: "root"})
+		ctx.Session.SetConnectionId(1)
+		ctx.ProcessList = p
+		ctx.SetCurrentDatabase("")
+
+		p.ConnectionReady(ctx.Session)
+
+		ctx, err := p.BeginQuery(ctx, "SELECT foo")
+		require.NoError(t, err)
+
+		p.AddConnection(2, "otherhost")
+		sess2 := sql.NewBaseSessionWithClientServer("localhost", sql.Client{Address: "otherhost", User: "root"}, 2)
+		sess2.SetCurrentDatabase("otherdb")
+		p.ConnectionReady(sess2)
+		ctx2 := sql.NewContext(context.Background(), sql.WithPid(2), sql.WithSession(sess2))
+		ctx2, err = p.BeginQuery(ctx2, "SELECT bar")
+		require.NoError(t, err)
+		p.EndQuery(ctx2)
+
+		TestQueryWithContext(t, ctx, e, h,
+			"SELECT id, uSeR, hOST FROM information_schema.processlist pl ORDER BY id",
+			[]sql.Row{
+				{uint64(1), "root", "localhost"},
+				{uint64(2), "root", "otherhost"},
+			},
+			sql.Schema{
+				{Name: "id", Type: types.Uint64},
+				{Name: "uSeR", Type: types.MustCreateString(sqltypes.VarChar, 96, sql.Collation_Information_Schema_Default)},
+				{Name: "hOST", Type: types.MustCreateString(sqltypes.VarChar, 783, sql.Collation_Information_Schema_Default)},
+			},
+			nil, nil,
+		)
+	})
+
+	t.Run("information_schema.processlist projection with aliased join case", func(t *testing.T) {
+		e := mustNewEngine(t, h)
+		defer e.Close()
+
+		if IsServerEngine(e) {
+			t.Skip("skipping for server engine as the processlist returned from server differs")
+		}
+		p := sqle.NewProcessList()
+		p.AddConnection(1, "localhost")
+
+		ctx := NewContext(h)
+		ctx.Session.SetClient(sql.Client{Address: "localhost", User: "root"})
+		ctx.Session.SetConnectionId(1)
+		ctx.ProcessList = p
+		ctx.SetCurrentDatabase("")
+
+		p.ConnectionReady(ctx.Session)
+
+		ctx, err := p.BeginQuery(ctx, "SELECT foo")
+		require.NoError(t, err)
+
+		p.AddConnection(2, "otherhost")
+		sess2 := sql.NewBaseSessionWithClientServer("localhost", sql.Client{Address: "otherhost", User: "root"}, 2)
+		sess2.SetCurrentDatabase("otherdb")
+		p.ConnectionReady(sess2)
+		ctx2 := sql.NewContext(context.Background(), sql.WithPid(2), sql.WithSession(sess2))
+		ctx2, err = p.BeginQuery(ctx2, "SELECT bar")
+		require.NoError(t, err)
+		p.EndQuery(ctx2)
+
+		TestQueryWithContext(t, ctx, e, h,
+			"SELECT id, uSeR, hOST FROM information_schema.processlist pl join information_schema.schemata on true ORDER BY id limit 1",
+			[]sql.Row{
+				{uint64(1), "root", "localhost"},
 			},
 			sql.Schema{
 				{Name: "id", Type: types.Uint64},
@@ -721,7 +810,9 @@ func TestOrderByGroupBy(t *testing.T, harness Harness) {
 				panic(fmt.Sprintf("unexpected type %T", v))
 			}
 
-			team := row[1].(string)
+			team, ok, err := sql.Unwrap[string](ctx, row[1])
+			require.NoError(t, err)
+			require.True(t, ok)
 			switch team {
 			case "red":
 				require.True(t, val == 3 || val == 4)
@@ -757,7 +848,9 @@ func TestOrderByGroupBy(t *testing.T, harness Harness) {
 				panic(fmt.Sprintf("unexpected type %T", v))
 			}
 
-			team := row[1].(string)
+			team, ok, err := sql.Unwrap[string](ctx, row[1])
+			require.True(t, ok)
+			require.NoError(t, err)
 			switch team {
 			case "red":
 				require.True(t, val == 3 || val == 4)
@@ -1989,7 +2082,7 @@ func TestUserPrivileges(t *testing.T, harness ClientHarness) {
 					// See the comment on QuickPrivilegeTest for a more in-depth explanation, but essentially we treat
 					// nil in script.Expected as matching "any" non-error result.
 					if script.Expected != nil && (rows != nil || len(script.Expected) != 0) {
-						CheckResults(t, harness, script.Expected, nil, sch, rows, lastQuery, engine)
+						CheckResults(ctx, t, harness, script.Expected, nil, sch, rows, lastQuery, engine)
 					}
 				})
 			}
@@ -2053,7 +2146,7 @@ func TestUserAuthentication(t *testing.T, h Harness) {
 				require.FailNow(t, "harness must implement ServerHarness")
 			}
 
-			s, err := server.NewServer(serverConfig, engine, serverHarness.SessionBuilder(), nil)
+			s, err := server.NewServer(serverConfig, engine, sql.NewContext, serverHarness.SessionBuilder(), nil)
 			require.NoError(t, err)
 			go func() {
 				err := s.Start()
@@ -2953,7 +3046,7 @@ func TestRenameColumn(t *testing.T, harness Harness) {
 		TestQueryWithContext(t, ctx, e, harness, "ALTER TABLE mydb.tabletest RENAME COLUMN s TO i1", []sql.Row{{types.NewOkResult(0)}}, nil, nil, nil)
 		TestQueryWithContext(t, ctx, e, harness, "SHOW FULL COLUMNS FROM mydb.tabletest", []sql.Row{
 			{"i", "int", nil, "NO", "PRI", nil, "", "", ""},
-			{"i1", "varchar(20)", "utf8mb4_0900_bin", "NO", "", nil, "", "", ""},
+			{"i1", "text", "utf8mb4_0900_bin", "NO", "", nil, "", "", ""},
 		}, nil, nil, nil)
 	})
 }
@@ -5606,7 +5699,7 @@ func testCharsetCollationWire(t *testing.T, h Harness, sessionBuilder server.Ses
 			defer engine.Close()
 			engine.EngineAnalyzer().Catalog.MySQLDb.AddRootAccount()
 
-			s, err := server.NewServer(serverConfig, engine, sessionBuilder, nil)
+			s, err := server.NewServer(serverConfig, engine, sql.NewContext, sessionBuilder, nil)
 			require.NoError(t, err)
 			go func() {
 				err := s.Start()
@@ -5722,7 +5815,7 @@ func TestTypesOverWire(t *testing.T, harness ClientHarness, sessionBuilder serve
 				Address:        fmt.Sprintf("localhost:%d", port),
 				MaxConnections: 1000,
 			}
-			s, err := server.NewServer(serverConfig, engine, sessionBuilder, nil)
+			s, err := server.NewServer(serverConfig, engine, sql.NewContext, sessionBuilder, nil)
 			require.NoError(t, err)
 			go func() {
 				err := s.Start()
@@ -5743,6 +5836,7 @@ func TestTypesOverWire(t *testing.T, harness ClientHarness, sessionBuilder serve
 					require.NoError(t, err)
 					expectedRowSet := script.Results[queryIdx]
 					expectedRowIdx := 0
+					buf := sql.NewByteBuffer(1000)
 					var engineRow sql.Row
 					for engineRow, err = engineIter.Next(ctx); err == nil; engineRow, err = engineIter.Next(ctx) {
 						if !assert.True(t, r.Next()) {
@@ -5760,7 +5854,7 @@ func TestTypesOverWire(t *testing.T, harness ClientHarness, sessionBuilder serve
 							break
 						}
 						expectedEngineRow := make([]*string, len(engineRow))
-						row, err := server.RowToSQL(ctx, sch, engineRow, nil)
+						row, err := server.RowToSQL(ctx, sch, engineRow, nil, buf)
 						if !assert.NoError(t, err) {
 							break
 						}
@@ -5949,15 +6043,16 @@ func findRole(toUser string, roles []*mysql_db.RoleEdge) *mysql_db.RoleEdge {
 }
 
 func TestBlobs(t *testing.T, h Harness) {
+	ctx := sql.NewEmptyContext()
 	h.Setup(setup.MydbData, setup.BlobData, setup.MytableData)
 
 	// By default, strict_mysql_compatibility is disabled, but these tests require it to be enabled.
-	err := sql.SystemVariables.SetGlobal("strict_mysql_compatibility", int8(1))
+	err := sql.SystemVariables.SetGlobal(ctx, "strict_mysql_compatibility", int8(1))
 	require.NoError(t, err)
 	for _, tt := range queries.BlobErrors {
 		runQueryErrorTest(t, h, tt)
 	}
-	err = sql.SystemVariables.SetGlobal("strict_mysql_compatibility", int8(0))
+	err = sql.SystemVariables.SetGlobal(ctx, "strict_mysql_compatibility", int8(0))
 	require.NoError(t, err)
 
 	e := mustNewEngine(t, h)

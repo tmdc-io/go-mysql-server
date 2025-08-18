@@ -150,6 +150,8 @@ type Engine struct {
 	Parser            sql.Parser
 }
 
+var _ sql.StatementRunner = (*Engine)(nil)
+
 type ColumnWithRawDefault struct {
 	SqlColumn *sql.Column
 	Default   string
@@ -195,6 +197,7 @@ func New(a *analyzer.Analyzer, cfg *Config) *Engine {
 		Parser:            sql.GlobalParser,
 	}
 	ret.ReadOnly.Store(cfg.IsReadOnly)
+	a.Runner = ret
 	return ret
 }
 
@@ -270,7 +273,7 @@ func clearWarnings(ctx *sql.Context, node sql.Node) {
 	}
 }
 
-func bindingsToExprs(bindings map[string]*querypb.BindVariable) (map[string]sql.Expression, error) {
+func bindingsToExprs(ctx *sql.Context, bindings map[string]*querypb.BindVariable) (map[string]sql.Expression, error) {
 	res := make(map[string]sql.Expression, len(bindings))
 	for k, v := range bindings {
 		v, err := sqltypes.NewValue(v.Type, v.Value)
@@ -279,7 +282,7 @@ func bindingsToExprs(bindings map[string]*querypb.BindVariable) (map[string]sql.
 		}
 		switch {
 		case v.Type() == sqltypes.Year:
-			v, _, err := types.Year.Convert(string(v.ToBytes()))
+			v, _, err := types.Year.Convert(ctx, string(v.ToBytes()))
 			if err != nil {
 				return nil, err
 			}
@@ -290,7 +293,7 @@ func bindingsToExprs(bindings map[string]*querypb.BindVariable) (map[string]sql.
 				return nil, err
 			}
 			t := types.Int64
-			c, _, err := t.Convert(v)
+			c, _, err := t.Convert(ctx, v)
 			if err != nil {
 				return nil, err
 			}
@@ -301,7 +304,7 @@ func bindingsToExprs(bindings map[string]*querypb.BindVariable) (map[string]sql.
 				return nil, err
 			}
 			t := types.Uint64
-			c, _, err := t.Convert(v)
+			c, _, err := t.Convert(ctx, v)
 			if err != nil {
 				return nil, err
 			}
@@ -312,20 +315,20 @@ func bindingsToExprs(bindings map[string]*querypb.BindVariable) (map[string]sql.
 				return nil, err
 			}
 			t := types.Float64
-			c, _, err := t.Convert(v)
+			c, _, err := t.Convert(ctx, v)
 			if err != nil {
 				return nil, err
 			}
 			res[k] = expression.NewLiteral(c, t)
 		case v.Type() == sqltypes.Decimal:
-			v, _, err := types.InternalDecimalType.Convert(string(v.ToBytes()))
+			v, _, err := types.InternalDecimalType.Convert(ctx, string(v.ToBytes()))
 			if err != nil {
 				return nil, err
 			}
 			res[k] = expression.NewLiteral(v, types.InternalDecimalType)
 		case v.Type() == sqltypes.Bit:
 			t := types.MustCreateBitType(types.BitTypeMaxBits)
-			v, _, err := t.Convert(v.ToBytes())
+			v, _, err := t.Convert(ctx, v.ToBytes())
 			if err != nil {
 				return nil, err
 			}
@@ -337,7 +340,7 @@ func bindingsToExprs(bindings map[string]*querypb.BindVariable) (map[string]sql.
 			if err != nil {
 				return nil, err
 			}
-			v, _, err := t.Convert(v.ToBytes())
+			v, _, err := t.Convert(ctx, v.ToBytes())
 			if err != nil {
 				return nil, err
 			}
@@ -347,7 +350,7 @@ func bindingsToExprs(bindings map[string]*querypb.BindVariable) (map[string]sql.
 			if err != nil {
 				return nil, err
 			}
-			v, _, err := t.Convert(v.ToBytes())
+			v, _, err := t.Convert(ctx, v.ToBytes())
 			if err != nil {
 				return nil, err
 			}
@@ -361,14 +364,14 @@ func bindingsToExprs(bindings map[string]*querypb.BindVariable) (map[string]sql.
 			if err != nil {
 				return nil, err
 			}
-			v, _, err := t.Convert(string(v.ToBytes()))
+			v, _, err := t.Convert(ctx, string(v.ToBytes()))
 			if err != nil {
 				return nil, err
 			}
 			res[k] = expression.NewLiteral(v, t)
 		case v.Type() == sqltypes.Time:
 			t := types.Time
-			v, _, err := t.Convert(string(v.ToBytes()))
+			v, _, err := t.Convert(ctx, string(v.ToBytes()))
 			if err != nil {
 				return nil, err
 			}
@@ -447,7 +450,7 @@ func (e *Engine) QueryWithBindings(ctx *sql.Context, query string, parsed sqlpar
 	}
 
 	var schema sql.Schema
-	iter, schema = rowexec.FinalizeIters(ctx, analyzed, qFlags, iter)
+	iter, schema, err = rowexec.FinalizeIters(ctx, analyzed, qFlags, iter)
 	if err != nil {
 		clearAutocommitErr := clearAutocommitTransaction(ctx)
 		if clearAutocommitErr != nil {
@@ -493,7 +496,7 @@ func (e *Engine) PrepQueryPlanForExecution(ctx *sql.Context, _ string, plan sql.
 	}
 
 	var schema sql.Schema
-	iter, schema = rowexec.FinalizeIters(ctx, plan, qFlags, iter)
+	iter, schema, err = rowexec.FinalizeIters(ctx, plan, qFlags, iter)
 	if err != nil {
 		clearAutocommitErr := clearAutocommitTransaction(ctx)
 		if clearAutocommitErr != nil {
@@ -584,20 +587,7 @@ func (e *Engine) analyzeNode(ctx *sql.Context, query string, bound sql.Node, qFl
 	switch n := bound.(type) {
 	case *plan.PrepareQuery:
 		sqlMode := sql.LoadSqlMode(ctx)
-
-		// we have to name-resolve to check for structural errors, but we do
-		// not to cache the name-bound query yet.
-		// todo(max): improve name resolution so we can cache post name-binding.
-		// this involves expression memoization, which currently screws up aggregation
-		// and order by aliases
-		prepStmt, _, err := e.Parser.ParseOneWithOptions(ctx, query, sqlMode.ParserOptions())
-		if err != nil {
-			return nil, err
-		}
-		prepare, ok := prepStmt.(*sqlparser.Prepare)
-		if !ok {
-			return nil, fmt.Errorf("expected *sqlparser.Prepare, found %T", prepStmt)
-		}
+		prepare := n.PrepStmt
 		cacheStmt, _, err := e.Parser.ParseOneWithOptions(ctx, prepare.Expr, sqlMode.ParserOptions())
 		if err != nil && strings.HasPrefix(prepare.Expr, "@") {
 			val, err := expression.NewUserVar(strings.TrimPrefix(prepare.Expr, "@")).Eval(ctx, nil)
@@ -683,7 +673,7 @@ func (e *Engine) bindExecuteQueryNode(ctx *sql.Context, query string, eq *plan.E
 				t = types.Null
 			}
 			if val != nil {
-				val, _, err = t.Promote().Convert(val)
+				val, _, err = t.Promote().Convert(ctx, val)
 				if err != nil {
 					return nil, nil
 				}
@@ -813,7 +803,7 @@ func (e *Engine) EngineEventScheduler() sql.EventScheduler {
 // getter function, |ctxGetterFunc, the EventScheduler |status|, and the |period| for the event scheduler
 // to check for events to execute. If |period| is less than 1, then it is ignored and the default period
 // (30s currently) is used. This function also initializes the EventScheduler of the analyzer of this engine.
-func (e *Engine) InitializeEventScheduler(ctxGetterFunc func() (*sql.Context, func() error, error), status eventscheduler.SchedulerStatus, period int) error {
+func (e *Engine) InitializeEventScheduler(ctxGetterFunc func() (*sql.Context, error), status eventscheduler.SchedulerStatus, period int) error {
 	var err error
 	e.EventScheduler, err = eventscheduler.InitEventScheduler(e.Analyzer, e.BackgroundThreads, ctxGetterFunc, status, e.executeEvent, period)
 	if err != nil {
@@ -855,7 +845,14 @@ func (e *Engine) executeEvent(ctx *sql.Context, dbName, createEventStatement, us
 		return err
 	}
 
-	iter, _ = rowexec.FinalizeIters(ctx, definitionNode, nil, iter)
+	iter, _, err = rowexec.FinalizeIters(ctx, definitionNode, nil, iter)
+	if err != nil {
+		clearAutocommitErr := clearAutocommitTransaction(ctx)
+		if clearAutocommitErr != nil {
+			return clearAutocommitErr
+		}
+		return err
+	}
 
 	// Drain the iterate to execute the event body/definition
 	// NOTE: No row data is returned for an event; we just need to execute the statements

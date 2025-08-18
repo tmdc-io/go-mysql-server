@@ -171,6 +171,59 @@ func TestKillConnection(t *testing.T) {
 	require.False(t, killed[2])
 }
 
+func TestBeginEndOperation(t *testing.T) {
+	knownSession := sql.NewBaseSessionWithClientServer("", sql.Client{}, 1)
+	unknownSession := sql.NewBaseSessionWithClientServer("", sql.Client{}, 2)
+
+	pl := NewProcessList()
+	pl.AddConnection(1, "")
+
+	// Begining an operation with an unknown connection returns an error.
+	ctx := sql.NewContext(context.Background(), sql.WithSession(unknownSession))
+	_, err := pl.BeginOperation(ctx)
+	require.Error(t, err)
+
+	// Can begin and end operation before connection is ready.
+	ctx = sql.NewContext(context.Background(), sql.WithSession(knownSession))
+	subCtx, err := pl.BeginOperation(ctx)
+	require.NoError(t, err)
+	pl.EndOperation(subCtx)
+
+	// Can begin and end operation across the connection ready boundary.
+	subCtx, err = pl.BeginOperation(ctx)
+	require.NoError(t, err)
+	pl.ConnectionReady(knownSession)
+	pl.EndOperation(subCtx)
+
+	// Ending the operation cancels the subcontext.
+	subCtx, err = pl.BeginOperation(ctx)
+	require.NoError(t, err)
+	done := make(chan struct{})
+	context.AfterFunc(subCtx, func() {
+		close(done)
+	})
+	pl.EndOperation(subCtx)
+	<-done
+
+	// Kill on the connection cancels the subcontext.
+	subCtx, err = pl.BeginOperation(ctx)
+	require.NoError(t, err)
+	done = make(chan struct{})
+	context.AfterFunc(subCtx, func() {
+		close(done)
+	})
+	pl.Kill(1)
+	<-done
+	pl.EndOperation(subCtx)
+
+	// Beginning an operation while one is outstanding errors.
+	subCtx, err = pl.BeginOperation(ctx)
+	require.NoError(t, err)
+	_, err = pl.BeginOperation(ctx)
+	require.Error(t, err)
+	pl.EndOperation(subCtx)
+}
+
 // TestSlowQueryTracking tests that processes that take longer than @@long_query_time increment the
 // Slow_queries status variable.
 func TestSlowQueryTracking(t *testing.T) {
@@ -189,7 +242,7 @@ func TestSlowQueryTracking(t *testing.T) {
 	require.NoError(t, err)
 
 	// Change @@long_query_time so we don't have to wait for 10 seconds
-	require.NoError(t, sql.SystemVariables.SetGlobal("long_query_time", 1))
+	require.NoError(t, sql.SystemVariables.SetGlobal(ctx, "long_query_time", 1))
 	time.Sleep(1_500 * time.Millisecond)
 	p.EndQuery(ctx)
 

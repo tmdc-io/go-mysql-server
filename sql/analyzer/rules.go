@@ -23,7 +23,7 @@ func init() {
 		{applyProceduresId, applyProcedures},
 		{inlineSubqueryAliasRefsId, inlineSubqueryAliasRefs},
 		{cacheSubqueryAliasesInJoinsId, cacheSubqueryAliasesInJoins},
-		{BacktickDefaulColumnValueNamesId, backtickDefaultColumnValueNames},
+		{QuoteDefaultColumnValueNamesId, quoteDefaultColumnValueNames},
 		{TrackProcessId, trackProcess},
 	}
 }
@@ -34,12 +34,11 @@ var OnceBeforeDefault = []Rule{
 	{applyDefaultSelectLimitId, applyDefaultSelectLimit},
 	{replaceCountStarId, replaceCountStar},
 	{validateOffsetAndLimitId, validateOffsetAndLimit},
-	{validateCreateTableId, validateCreateTable},
+	{ValidateCreateTableId, validateCreateTable},
 	{validateAlterTableId, validateAlterTable},
 	{validateExprSemId, validateExprSem},
-	{validateCreateProcedureId, validateCreateProcedure},
 	{resolveDropConstraintId, resolveDropConstraint},
-	{resolveAlterColumnId, resolveAlterColumn},
+	{ResolveAlterColumnId, resolveAlterColumn},
 	{validateDropTablesId, validateDropTables},
 	{resolveCreateSelectId, resolveCreateSelect},
 	{validateDropConstraintId, validateDropConstraint},
@@ -93,6 +92,7 @@ var OnceAfterDefault = []Rule{
 	{assignRoutinesId, assignRoutines},
 	{modifyUpdateExprsForJoinId, modifyUpdateExprsForJoin},
 	{applyForeignKeysId, applyForeignKeys},
+	{interpreterId, interpreter},
 }
 
 // DefaultValidationRules to apply while analyzing nodes.

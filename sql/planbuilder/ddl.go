@@ -122,6 +122,9 @@ func (b *Builder) buildDDL(inScope *scope, subQuery string, fullQuery string, c 
 	if err := b.cat.AuthorizationHandler().HandleAuth(b.ctx, b.authQueryState, c.Auth); err != nil && b.authEnabled {
 		b.handleErr(err)
 	}
+	if !c.Temporary {
+		b.qFlags.Set(sql.QFlagDDL)
+	}
 
 	outScope = inScope.push()
 	switch strings.ToLower(c.Action) {
@@ -231,6 +234,7 @@ func (b *Builder) buildDropTable(inScope *scope, c *ast.DDL) (outScope *scope) {
 	if dbName == "" {
 		dbName = b.currentDb().Name()
 	}
+
 	for _, t := range c.FromTables {
 		if t.DbQualifier.String() != "" && t.DbQualifier.String() != dbName {
 			err := sql.ErrUnsupportedFeature.New("dropping tables on multiple databases in the same statement")
@@ -253,6 +257,13 @@ func (b *Builder) buildDropTable(inScope *scope, c *ast.DDL) (outScope *scope) {
 
 		tableScope, ok := b.buildResolvedTableForTablename(inScope, t, nil)
 		if ok {
+			// attempting to drop a non-temporary table with DROP TEMPORARY, results in Unknown table
+			if tbl, ok := tableScope.node.(sql.Table); ok {
+				if tmpTbl := getTempTable(tbl); tmpTbl != nil && !tmpTbl.IsTemporary() && c.Temporary {
+					err := sql.ErrUnknownTable.New(tableName)
+					b.handleErr(err)
+				}
+			}
 			dropTables = append(dropTables, tableScope.node)
 		} else if !c.IfExists {
 			err := sql.ErrTableNotFound.New(tableName)
@@ -262,6 +273,19 @@ func (b *Builder) buildDropTable(inScope *scope, c *ast.DDL) (outScope *scope) {
 
 	outScope.node = plan.NewDropTable(dropTables, c.IfExists)
 	return
+}
+
+func getTempTable(t sql.Table) sql.TemporaryTable {
+	switch t := t.(type) {
+	case sql.TemporaryTable:
+		return t
+	case sql.TableWrapper:
+		return getTempTable(t.Underlying())
+	case *plan.ResolvedTable:
+		return getTempTable(t.Table)
+	default:
+		return nil
+	}
 }
 
 func (b *Builder) buildTruncateTable(inScope *scope, c *ast.DDL) (outScope *scope) {
@@ -574,7 +598,7 @@ func (b *Builder) buildAlterTableClause(inScope *scope, ddl *ast.DDL) []*scope {
 
 		if ddl.ColumnAction != "" {
 			columnActionOutscope := b.buildAlterTableColumnAction(tableScope, ddl, rt)
-			outScopes = append(outScopes, columnActionOutscope)
+			outScopes = append(outScopes, columnActionOutscope.copy())
 
 			if ddl.TableSpec != nil {
 				if len(ddl.TableSpec.Columns) != 1 {
@@ -695,6 +719,9 @@ func (b *Builder) buildAlterConstraint(inScope *scope, ddl *ast.DDL, table *plan
 				c.SchemaName = ds.SchemaName()
 			}
 
+			if err := b.validateOnUpdateOnDeleteRefActions(c); err != nil {
+				b.handleErr(err)
+			}
 			alterFk := plan.NewAlterAddForeignKey(c)
 			alterFk.DbProvider = b.cat
 			outScope.node = alterFk
@@ -717,6 +744,7 @@ func (b *Builder) buildAlterConstraint(inScope *scope, ddl *ast.DDL, table *plan
 			outScope.node = &plan.DropConstraint{
 				UnaryNode: plan.UnaryNode{Child: table},
 				Name:      c.name,
+				IfExists:  ddl.ConstraintIfExists,
 			}
 		default:
 			err := sql.ErrUnsupportedFeature.New(ast.String(ddl))
@@ -761,6 +789,9 @@ func (b *Builder) buildConstraintsDefs(inScope *scope, tname ast.TableName, spec
 		case *sql.ForeignKeyConstraint:
 			constraint.Database = tname.DbQualifier.String()
 			constraint.Table = tname.Name.String()
+			if err := b.validateOnUpdateOnDeleteRefActions(constraint); err != nil {
+				b.handleErr(err)
+			}
 			if constraint.Database == "" {
 				constraint.Database = b.ctx.GetCurrentDatabase()
 			}
@@ -1045,7 +1076,11 @@ func (b *Builder) buildAlterAutoIncrement(inScope *scope, ddl *ast.DDL, table *p
 func (b *Builder) buildAlterNotNull(inScope *scope, ddl *ast.DDL, table *plan.ResolvedTable) (outScope *scope) {
 	outScope = inScope
 	spec := ddl.NotNullSpec
-	for _, c := range table.Schema() {
+
+	// Resolve the schema defaults, so we don't leave around any UnresolvedColumnDefault expressions,
+	// otherwise Doltgres won't be able to process these nodes.
+	resolvedSchema := b.resolveSchemaDefaults(inScope, table.Schema())
+	for _, c := range resolvedSchema {
 		if strings.EqualFold(c.Name, spec.Column.String()) {
 			colCopy := *c
 			switch strings.ToLower(spec.Action) {
@@ -1073,7 +1108,11 @@ func (b *Builder) buildAlterNotNull(inScope *scope, ddl *ast.DDL, table *plan.Re
 func (b *Builder) buildAlterChangeColumnType(inScope *scope, ddl *ast.DDL, table *plan.ResolvedTable) (outScope *scope) {
 	outScope = inScope
 	spec := ddl.ColumnTypeSpec
-	for _, c := range table.Schema() {
+
+	// Resolve the schema defaults, so we don't leave around any UnresolvedColumnDefault expressions,
+	// otherwise Doltgres won't be able to process these nodes.
+	resolvedSchema := b.resolveSchemaDefaults(inScope, table.Schema())
+	for _, c := range resolvedSchema {
 		if strings.EqualFold(c.Name, spec.Column.String()) {
 			colCopy := *c
 			typ, err := types.ColumnTypeToType(&spec.Type)
@@ -1544,6 +1583,40 @@ func (b *Builder) modifySchemaTarget(inScope *scope, n sql.SchemaTarget, sch sql
 	return ret
 }
 
+// ResolveSchemaDefaults resolves any column default value expressions for the specified |schema|, for the table
+// named |tableName| and returns the schema with the default value expressions resolved. Note that any GetField
+// expressions in the column default value expressions have not had their indexes corrected yet.
+func (b *Builder) ResolveSchemaDefaults(db string, tableName string, schema sql.Schema) sql.Schema {
+	tableScope := b.newScope()
+	for _, c := range schema {
+		tableScope.newColumn(scopeColumn{
+			table:       strings.ToLower(tableName),
+			db:          strings.ToLower(db),
+			col:         strings.ToLower(c.Name),
+			originalCol: c.Name,
+			typ:         c.Type,
+			nullable:    c.Nullable,
+		})
+	}
+
+	return b.resolveSchemaDefaults(tableScope, schema)
+}
+
+// validateOnUpdateOnDeleteRefActions validates that the specified |constraint| is using referential actions
+// supported by the current dialect. For example, MySQL parses the syntax for the SET DEFAULT referential action,
+// but doesn't actually support it, so if the MySQL parser is in use, this method will return an error stating
+// that SET DEFAULT is not supported.
+func (b *Builder) validateOnUpdateOnDeleteRefActions(constraint *sql.ForeignKeyConstraint) error {
+	if _, ok := b.parser.(*sql.MysqlParser); ok {
+		if constraint.OnUpdate == sql.ForeignKeyReferentialAction_SetDefault ||
+			constraint.OnDelete == sql.ForeignKeyReferentialAction_SetDefault {
+			return sql.ErrForeignKeySetDefault.New()
+		}
+	}
+
+	return nil
+}
+
 func (b *Builder) resolveSchemaDefaults(inScope *scope, schema sql.Schema) sql.Schema {
 	if len(schema) == 0 {
 		return nil
@@ -1630,7 +1703,7 @@ func (b *Builder) resolveColumnDefaultExpression(inScope *scope, columnDef *sql.
 
 	parsed, err := b.parser.ParseSimple(fmt.Sprintf("SELECT %s", def))
 	if err != nil {
-		err := fmt.Errorf("%w: %s", sql.ErrInvalidColumnDefaultValue.New(def), err)
+		err := sql.ErrInvalidColumnDefaultValue.Wrap(err, def)
 		b.handleErr(err)
 	}
 

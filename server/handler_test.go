@@ -20,6 +20,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -52,6 +53,7 @@ func TestHandlerOutput(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -222,6 +224,7 @@ func TestHandlerErrors(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -300,6 +303,7 @@ func TestHandlerComResetConnection(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -360,6 +364,7 @@ func TestHandlerComPrepare(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -432,6 +437,7 @@ func TestHandlerComPrepareExecute(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -507,6 +513,7 @@ func TestHandlerComPrepareExecuteWithPreparedDisabled(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -530,7 +537,7 @@ func TestHandlerComPrepareExecuteWithPreparedDisabled(t *testing.T) {
 
 	for _, test := range []testcase{
 		{
-			name: "select statement returns nil schema",
+			name: "select statement returns nil schema bug",
 			prepare: &mysql.PrepareData{
 				StatementID: 0,
 				PrepareStmt: "select c1 from test where c1 < ?",
@@ -546,6 +553,40 @@ func TestHandlerComPrepareExecuteWithPreparedDisabled(t *testing.T) {
 			},
 			expected: []sql.Row{
 				{0}, {1}, {2}, {3}, {4},
+			},
+		},
+		{
+			name: "ifnull typing",
+			prepare: &mysql.PrepareData{
+				StatementID: 0,
+				PrepareStmt: "select ifnull(not null, 1000) as a",
+				ParamsCount: 0,
+				ParamsType:  nil,
+				ColumnNames: nil,
+				BindVars:    nil,
+			},
+			schema: []*query.Field{
+				{Name: "a", OrgName: "a", Table: "", OrgTable: "", Database: "", Type: query.Type_INT16, Charset: uint32(sql.CharacterSet_utf8mb4), ColumnLength: 6, Flags: uint32(query.MySqlFlag_NOT_NULL_FLAG)},
+			},
+			expected: []sql.Row{
+				{1000},
+			},
+		},
+		{
+			name: "ifnull typing negative",
+			prepare: &mysql.PrepareData{
+				StatementID: 0,
+				PrepareStmt: "select ifnull(not null, -129) as a",
+				ParamsCount: 0,
+				ParamsType:  nil,
+				ColumnNames: nil,
+				BindVars:    nil,
+			},
+			schema: []*query.Field{
+				{Name: "a", OrgName: "a", Table: "", OrgTable: "", Database: "", Type: query.Type_INT16, Charset: uint32(sql.CharacterSet_utf8mb4), ColumnLength: 6, Flags: uint32(query.MySqlFlag_NOT_NULL_FLAG)},
+			},
+			expected: []sql.Row{
+				{-129},
 			},
 		},
 	} {
@@ -614,6 +655,7 @@ func TestServerEventListener(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			func(ctx context.Context, conn *mysql.Conn, addr string) (sql.Session, error) {
 				return sql.NewBaseSessionWithClientServer(addr, sql.Client{Capabilities: conn.Capabilities}, conn.ConnectionID), nil
 			},
@@ -641,7 +683,7 @@ func TestServerEventListener(t *testing.T) {
 	require.Equal(listener.Connections, 1)
 	require.Equal(listener.Disconnects, 0)
 
-	err := handler.sm.SetDB(conn1, "test")
+	err := handler.sm.SetDB(context.Background(), conn1, "test")
 	require.NoError(err)
 
 	err = handler.ComQuery(context.Background(), conn1, "SELECT 1", cb)
@@ -677,6 +719,7 @@ func TestServerEventListener(t *testing.T) {
 	require.Equal(listener.Disconnects, 2)
 
 	conn3 := newConn(3)
+	handler.NewConnection(conn3)
 	query := "SELECT ?"
 	_, err = handler.ComPrepare(context.Background(), conn3, query, samplePrepareData)
 	require.NoError(err)
@@ -695,6 +738,7 @@ func TestHandlerKill(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			func(ctx context.Context, conn *mysql.Conn, addr string) (sql.Session, error) {
 				return sql.NewBaseSessionWithClientServer(addr, sql.Client{Capabilities: conn.Capabilities}, conn.ConnectionID), nil
 			},
@@ -725,7 +769,7 @@ func TestHandlerKill(t *testing.T) {
 	require.Len(handler.sm.connections, 2)
 	require.Len(handler.sm.sessions, 1)
 
-	err = handler.sm.SetDB(conn1, "test")
+	err = handler.sm.SetDB(context.Background(), conn1, "test")
 	require.NoError(err)
 	ctx1, err := handler.sm.NewContextWithQuery(context.Background(), conn1, "SELECT 1")
 	require.NoError(err)
@@ -754,6 +798,7 @@ func TestHandlerKillQuery(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			func(ctx context.Context, conn *mysql.Conn, addr string) (sql.Session, error) {
 				return sql.NewBaseSessionWithClientServer(addr, sql.Client{Capabilities: conn.Capabilities}, conn.ConnectionID), nil
 			},
@@ -776,10 +821,10 @@ func TestHandlerKillQuery(t *testing.T) {
 	require.Len(handler.sm.sessions, 0)
 
 	handler.ComInitDB(conn1, "test")
-	err = handler.sm.SetDB(conn1, "test")
+	err = handler.sm.SetDB(context.Background(), conn1, "test")
 	require.NoError(err)
 
-	err = handler.sm.SetDB(conn2, "test")
+	err = handler.sm.SetDB(context.Background(), conn2, "test")
 	require.NoError(err)
 
 	require.False(conn1.Conn.(*mockConn).closed)
@@ -789,13 +834,14 @@ func TestHandlerKillQuery(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	sleepQuery := "SELECT SLEEP(1)"
+	sleepQuery := "SELECT SLEEP(100000)"
+	var sleepErr error
 	go func() {
 		defer wg.Done()
-		err = handler.ComQuery(context.Background(), conn1, sleepQuery, func(res *sqltypes.Result, more bool) error {
+		// need a local |err| variable to avoid being overwritten
+		sleepErr = handler.ComQuery(context.Background(), conn1, sleepQuery, func(res *sqltypes.Result, more bool) error {
 			return nil
 		})
-		require.Error(err)
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -805,12 +851,17 @@ func TestHandlerKillQuery(t *testing.T) {
 		// 2,  ,  , test, Query, 0, running, SHOW PROCESSLIST
 		require.Equal(2, len(res.Rows))
 		hasSleepQuery := false
+		fmt.Println(res.Rows[0][0], res.Rows[0][4], res.Rows[0][7])
+		fmt.Println(res.Rows[1][0], res.Rows[1][4], res.Rows[1][7])
 		for _, row := range res.Rows {
 			if row[7].ToString() != sleepQuery {
 				continue
 			}
 			hasSleepQuery = true
-			sleepQueryID = row[0].ToString()
+			// the values inside a callback are generally only valid for the
+			// duration of the query, and need to be copied to avoid being
+			// overwritten
+			sleepQueryID = strings.Clone(row[0].ToString())
 			require.Equal("Query", row[4].ToString())
 		}
 		require.True(hasSleepQuery)
@@ -824,6 +875,7 @@ func TestHandlerKillQuery(t *testing.T) {
 	})
 	require.NoError(err)
 	wg.Wait()
+	require.Error(sleepErr)
 
 	time.Sleep(100 * time.Millisecond)
 	err = handler.ComQuery(context.Background(), conn2, "SHOW PROCESSLIST", func(res *sqltypes.Result, more bool) error {
@@ -971,6 +1023,7 @@ func TestSchemaToFields(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1051,7 +1104,9 @@ func TestHandlerTimeout(t *testing.T) {
 
 	timeOutHandler := &Handler{
 		e: e,
-		sm: NewSessionManager(testSessionBuilder(pro),
+		sm: NewSessionManager(
+			sql.NewContext,
+			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
 			sql.NewMemoryManager(nil),
@@ -1062,7 +1117,9 @@ func TestHandlerTimeout(t *testing.T) {
 
 	noTimeOutHandler := &Handler{
 		e: e2,
-		sm: NewSessionManager(testSessionBuilder(pro2),
+		sm: NewSessionManager(
+			sql.NewContext,
+			testSessionBuilder(pro2),
 			sql.NoopTracer,
 			dbFunc2,
 			sql.NewMemoryManager(nil),
@@ -1116,6 +1173,7 @@ func TestOkClosedConnection(t *testing.T) {
 	h := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1148,6 +1206,7 @@ func TestHandlerFoundRowsCapabilities(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1156,6 +1215,8 @@ func TestHandlerFoundRowsCapabilities(t *testing.T) {
 			"foo",
 		),
 	}
+
+	handler.NewConnection(dummyConn)
 
 	tests := []struct {
 		name                 string
@@ -1356,6 +1417,7 @@ func TestStatusVariableQuestions(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1466,6 +1528,7 @@ func TestStatusVariableAbortedConnects(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1492,6 +1555,7 @@ func TestStatusVariableMaxUsedConnections(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1542,6 +1606,7 @@ func TestStatusVariableThreadsConnected(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1596,6 +1661,7 @@ func TestStatusVariableThreadsRunning(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1659,6 +1725,7 @@ func TestStatusVariableComSelect(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1708,6 +1775,7 @@ func TestStatusVariableComDelete(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1757,6 +1825,7 @@ func TestStatusVariableComInsert(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,
@@ -1806,6 +1875,7 @@ func TestStatusVariableComUpdate(t *testing.T) {
 	handler := &Handler{
 		e: e,
 		sm: NewSessionManager(
+			sql.NewContext,
 			testSessionBuilder(pro),
 			sql.NoopTracer,
 			dbFunc,

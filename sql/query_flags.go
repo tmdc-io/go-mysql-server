@@ -28,6 +28,8 @@ const (
 	QFlgNotExpr
 	QFlagCount
 	QFlagCountStar
+	QFlagDDL
+	QFlagDBDDL
 	QFlagAlterTable
 	QFlagCrossJoin
 	QFlagSort
@@ -49,6 +51,11 @@ const (
 	// QFlagUndeferrableExprs indicates that the query has expressions that cannot be deferred
 	QFlagUndeferrableExprs
 	QFlagTrigger
+
+	QFlagCreateEvent
+	QFlagCreateTrigger
+	QFlagCreateProcedure
+	QFlagAnalyzeProcedure
 )
 
 type QueryFlags struct {

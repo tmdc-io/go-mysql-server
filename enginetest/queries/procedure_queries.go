@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/dolthub/go-mysql-server/sql"
+	"github.com/dolthub/go-mysql-server/sql/plan"
 	"github.com/dolthub/go-mysql-server/sql/types"
 )
 
@@ -75,17 +76,13 @@ var ProcedureLogicTests = []ScriptTest{
 			{
 				Query: "CALL testabc(2, 3)",
 				Expected: []sql.Row{
-					{
-						6.0,
-					},
+					{6.0},
 				},
 			},
 			{
 				Query: "CALL testabc(9, 9.5)",
 				Expected: []sql.Row{
-					{
-						85.5,
-					},
+					{85.5},
 				},
 			},
 		},
@@ -906,9 +903,11 @@ END;`,
 		SetUpScript: []string{
 			"CREATE TABLE inventory (item_id int primary key, shelf_id int, item varchar(10))",
 			"INSERT INTO inventory VALUES (1, 1, 'a'), (2, 1, 'b'), (3, 2, 'c'), (4, 1, 'd'), (5, 4, 'e')",
-			`CREATE PROCEDURE count_and_print(IN p_shelf_id INT, OUT p_count INT) BEGIN
-SELECT item FROM inventory WHERE shelf_id = p_shelf_id ORDER BY item ASC;
-SELECT COUNT(*) INTO p_count FROM inventory WHERE shelf_id = p_shelf_id;
+			`
+CREATE PROCEDURE count_and_print(IN p_shelf_id INT, OUT p_count INT)
+BEGIN
+	SELECT item FROM inventory WHERE shelf_id = p_shelf_id ORDER BY item ASC;
+	SELECT COUNT(*) INTO p_count FROM inventory WHERE shelf_id = p_shelf_id;
 END`,
 		},
 		Assertions: []ScriptTestAssertion{
@@ -989,8 +988,12 @@ END;`,
 				Expected: []sql.Row{{}},
 			},
 			{
-				Query:    "CALL p1(@x);",
-				Expected: []sql.Row{{}},
+				// TODO: Set statements don't return anything for whatever reason
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "CALL p1(@x);",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
 			},
 			{
 				Query: "SELECT @x;",
@@ -1020,8 +1023,6 @@ BEGIN
 	ELSEIF x = 4 THEN
 		SIGNAL specialty2;
 	ELSE
-		SIGNAL SQLSTATE '01000'
-			SET MESSAGE_TEXT = 'A warning occurred', MYSQL_ERRNO = 1000;
 		SIGNAL SQLSTATE '45000'
 			SET MESSAGE_TEXT = 'An error occurred', MYSQL_ERRNO = 1001;
 	END IF;
@@ -1050,6 +1051,10 @@ END;`,
 			{
 				Query:          "CALL p1(4)",
 				ExpectedErrStr: "Unhandled user-defined not found condition (errno 1643) (sqlstate 02000)",
+			},
+			{
+				Query:          "CALL p1(5)",
+				ExpectedErrStr: "An error occurred (errno 1001) (sqlstate 45000)",
 			},
 		},
 	},
@@ -1266,17 +1271,18 @@ END;`,
 			`CREATE PROCEDURE duplicate_key()
 BEGIN
 	DECLARE a, b INT DEFAULT 1;
-    BEGIN
+	BEGIN
 		DECLARE EXIT HANDLER FOR SQLEXCEPTION SET a = 7;
 		INSERT INTO t1 values (0);
-    END;
-    SELECT a;
+	END;
+	SELECT a;
 END;`,
 		},
 		Assertions: []ScriptTestAssertion{
 			{
-				Query:    "CALL eof();",
-				Expected: []sql.Row{},
+				// TODO: MySQL returns: ERROR: 1329: No data - zero rows fetched, selected, or processed
+				Query:          "CALL eof();",
+				ExpectedErrStr: "exhausted fetch iterator",
 			},
 			{
 				Query:    "CALL duplicate_key();",
@@ -1392,8 +1398,12 @@ END;`,
 		},
 		Assertions: []ScriptTestAssertion{
 			{
-				Query:    "CALL outer_declare();",
-				Expected: []sql.Row{},
+				// TODO: Set statements don't return anything for whatever reason
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "CALL outer_declare();",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
 			},
 			{
 				Query: "CALL inner_declare();",
@@ -2182,6 +2192,123 @@ END;`,
 			},
 		},
 	},
+	{
+		Name: "recursive procedure",
+		SetUpScript: []string{
+			`
+create procedure recursive_proc(in counter int)
+begin
+  set counter := counter + 1;
+  if counter > 3 then
+    select concat('ended with value: ', counter) as result;
+  else
+    call recursive_proc(counter);
+  end if;
+end;`,
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query: "call recursive_proc(1);",
+				Expected: []sql.Row{
+					{"ended with value: 4"},
+				},
+			},
+		},
+	},
+	{
+		Name: "multi recursive procedures",
+		SetUpScript: []string{
+			`
+create procedure procA(in counter int)
+begin
+  set counter := counter + 1;
+  if counter > 3 then
+    select concat('ended in procA with value: ', counter) as result;
+  else
+    call procB(counter);
+  end if;
+end;
+`,
+			`
+create procedure procB(in counter int)
+begin
+  set counter := counter + 1;
+  if counter > 3 then
+    select concat('ended in procB with value: ', counter) as result;
+  else
+    call procA(counter);
+  end if;
+end;
+`,
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query: "call procA(1);",
+				Expected: []sql.Row{
+					{"ended in procA with value: 4"},
+				},
+			},
+			{
+				Query: "call procB(1);",
+				Expected: []sql.Row{
+					{"ended in procB with value: 4"},
+				},
+			},
+		},
+	},
+	{
+		Name: "user variables are usable within stored procedures",
+		SetUpScript: []string{
+			`
+create procedure proc()
+begin
+  declare v int default 123;
+  set @v = v;
+end;
+`,
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query:    "call proc();",
+				Expected: []sql.Row{{}},
+			},
+			{
+				Query: "select @v;",
+				Expected: []sql.Row{
+					{123},
+				},
+			},
+		},
+	},
+	{
+		Name: "prepare statement inside of stored procedures",
+		SetUpScript: []string{
+			`
+create procedure create_proc()
+begin
+  set @stmt = 'create table t (i int)';
+  prepare stmt from @stmt;
+  execute stmt;
+  deallocate prepare stmt;
+end;
+`,
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "call create_proc();",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
+			},
+			{
+				Query: "insert into t values (1), (2), (3);",
+				Expected: []sql.Row{
+					{types.NewOkResult(3)},
+				},
+			},
+		},
+	},
 }
 
 var ProcedureCallTests = []ScriptTest{
@@ -2214,9 +2341,7 @@ var ProcedureCallTests = []ScriptTest{
 			{
 				Query: "SELECT @outparam",
 				Expected: []sql.Row{
-					{
-						nil,
-					},
+					{nil},
 				},
 			},
 		},
@@ -2270,9 +2395,7 @@ var ProcedureCallTests = []ScriptTest{
 			{
 				Query: "SELECT @outparam",
 				Expected: []sql.Row{
-					{
-						int64(777),
-					},
+					{int64(777)},
 				},
 			},
 		},
@@ -2438,6 +2561,27 @@ var ProcedureCallTests = []ScriptTest{
 			{
 				Query:    "CALL populate_if_empty();",
 				Expected: []sql.Row{{"hi"}},
+			},
+		},
+	},
+	{
+		Name: "creating invalid procedure doesn't error until it is called",
+		Assertions: []ScriptTestAssertion{
+			{
+				Query:    `CREATE PROCEDURE proc1 (OUT out_count INT) READS SQL DATA SELECT COUNT(*) FROM mytable WHERE i = 1 AND s = 'first row' AND func1(i);`,
+				Expected: []sql.Row{{types.NewOkResult(0)}},
+			},
+			{
+				Query:       "CALL proc1(@out_count);",
+				ExpectedErr: sql.ErrTableNotFound,
+			},
+			{
+				Query:    "CREATE TABLE mytable (i int, s varchar(128));",
+				Expected: []sql.Row{{types.NewOkResult(0)}},
+			},
+			{
+				Query:       "CALL proc1(@out_count);",
+				ExpectedErr: sql.ErrFunctionNotFound,
 			},
 		},
 	},
@@ -2787,25 +2931,12 @@ var ProcedureShowCreate = []ScriptTest{
 }
 
 var ProcedureCreateInSubroutineTests = []ScriptTest{
-	//TODO: Match MySQL behavior (https://github.com/dolthub/dolt/issues/8053)
-	{
-		Name: "procedure must not contain CREATE PROCEDURE",
-		Assertions: []ScriptTestAssertion{
-			{
-				Query: "CREATE PROCEDURE foo() CREATE PROCEDURE bar() SELECT 0;",
-				// MySQL output: "Can't create a PROCEDURE from within another stored routine",
-				ExpectedErrStr: "creating procedures in stored procedures is currently unsupported and will be added in a future release",
-			},
-		},
-	},
 	{
 		Name: "event must not contain CREATE PROCEDURE",
 		Assertions: []ScriptTestAssertion{
 			{
-				// Skipped because MySQL errors here but we don't.
 				Query:          "CREATE EVENT foo ON SCHEDULE EVERY 1 YEAR DO CREATE PROCEDURE bar() SELECT 1;",
-				ExpectedErrStr: "Can't create a PROCEDURE from within another stored routine",
-				Skip:           true,
+				ExpectedErrStr: "can't create a PROCEDURE from within another stored routine",
 			},
 		},
 	},
@@ -2820,6 +2951,166 @@ var ProcedureCreateInSubroutineTests = []ScriptTest{
 				Query:          "CREATE TRIGGER foo AFTER UPDATE ON t FOR EACH ROW BEGIN CREATE PROCEDURE bar() SELECT 1; END",
 				ExpectedErrStr: "Can't create a PROCEDURE from within another stored routine",
 				Skip:           true,
+			},
+		},
+	},
+
+	{
+		Name: "table ddl statements in stored procedures",
+		Assertions: []ScriptTestAssertion{
+			{
+				Query: "create procedure create_proc() create table t (i int primary key, j int);",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
+			},
+			{
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "call create_proc()",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
+			},
+			{
+				Query: "show create table t;",
+				Expected: []sql.Row{
+					{"t", "CREATE TABLE `t` (\n" +
+						"  `i` int NOT NULL,\n" +
+						"  `j` int,\n" +
+						"  PRIMARY KEY (`i`)\n" +
+						") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin"},
+				},
+			},
+			{
+				Query:          "call create_proc()",
+				ExpectedErrStr: "table with name t already exists",
+			},
+
+			{
+				Query: "create procedure insert_proc() insert into t values (1, 1), (2, 2), (3, 3);",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
+			},
+			{
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "call insert_proc()",
+				Expected: []sql.Row{
+					{types.NewOkResult(3)},
+				},
+			},
+			{
+				Query: "select * from t",
+				Expected: []sql.Row{
+					{1, 1},
+					{2, 2},
+					{3, 3},
+				},
+			},
+			{
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "call insert_proc()",
+				ExpectedErrStr:                "duplicate primary key given: [1]",
+			},
+
+			{
+				Query: "create procedure update_proc() update t set j = 999 where i > 1;",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
+			},
+			{
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "call update_proc()",
+				Expected: []sql.Row{
+					{types.OkResult{RowsAffected: 2, Info: plan.UpdateInfo{Matched: 2, Updated: 2}}},
+				},
+			},
+			{
+				Query: "select * from t",
+				Expected: []sql.Row{
+					{1, 1},
+					{2, 999},
+					{3, 999},
+				},
+			},
+			{
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "call update_proc()",
+				Expected: []sql.Row{
+					{types.OkResult{RowsAffected: 0, Info: plan.UpdateInfo{Matched: 2}}},
+				},
+			},
+
+			{
+				Query: "create procedure drop_proc() drop table t;",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
+			},
+			{
+				SkipResultCheckOnServerEngine: true,
+				Query:                         "call drop_proc()",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
+			},
+			{
+				Query:    "show tables like 't'",
+				Expected: []sql.Row{},
+			},
+			{
+				Query:          "call drop_proc()",
+				ExpectedErrStr: "table not found: t",
+			},
+		},
+	},
+
+	{
+		Name: "procedure must not contain CREATE TRIGGER",
+		SetUpScript: []string{
+			"create table t (i int);",
+		},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query:          "create procedure p() create trigger trig before insert on t for each row begin select 1; end;",
+				ExpectedErrStr: "can't create a TRIGGER from within another stored routine",
+			},
+			{
+				Query:          "create procedure p() begin create trigger trig before insert on t for each row begin select 1; end; end;",
+				ExpectedErrStr: "can't create a TRIGGER from within another stored routine",
+			},
+		},
+	},
+	{
+		Name:        "procedure must not contain CREATE DB",
+		SetUpScript: []string{},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query:          "create procedure p() create database procdb;",
+				ExpectedErrStr: "DBDDL in CREATE PROCEDURE not yet supported",
+			},
+			{
+				Query:          "create procedure p() begin create database procdb; end;",
+				ExpectedErrStr: "DBDDL in CREATE PROCEDURE not yet supported",
+			},
+		},
+	},
+	{
+		Name:        "procedure can CREATE VIEW",
+		SetUpScript: []string{},
+		Assertions: []ScriptTestAssertion{
+			{
+				Query: "create procedure p1() create view v as select 1;",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
+			},
+			{
+				Query: "create procedure p() begin create view v as select 1; end;",
+				Expected: []sql.Row{
+					{types.NewOkResult(0)},
+				},
 			},
 		},
 	},

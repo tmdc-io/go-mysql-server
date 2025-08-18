@@ -134,7 +134,7 @@ func stripTblNames(e sql.Expression) (sql.Expression, transform.TreeIdentity, er
 	case *expression.GetField:
 		// strip table names
 		ne := expression.NewGetField(e.Index(), e.Type(), e.Name(), e.IsNullable())
-		ne = ne.WithBackTickNames(e.IsBackTickNames())
+		ne = ne.WithQuotedNames(sql.GlobalSchemaFormatter, e.IsQuotedIdentifier())
 		return ne, transform.NewTree, nil
 	default:
 	}
@@ -1151,13 +1151,13 @@ func (t *Table) PeekNextAutoIncrementValue(ctx *sql.Context) (uint64, error) {
 func (t *Table) GetNextAutoIncrementValue(ctx *sql.Context, insertVal interface{}) (uint64, error) {
 	data := t.sessionTableData(ctx)
 
-	cmp, err := types.Uint64.Compare(insertVal, data.autoIncVal)
+	cmp, err := types.Uint64.Compare(ctx, insertVal, data.autoIncVal)
 	if err != nil {
 		return 0, err
 	}
 
 	if cmp > 0 && insertVal != nil {
-		v, _, err := types.Uint64.Convert(insertVal)
+		v, _, err := types.Uint64.Convert(ctx, insertVal)
 		if err != nil {
 			return 0, err
 		}
@@ -1238,14 +1238,14 @@ func addColumnToSchema(ctx *sql.Context, data *TableData, newCol *sql.Column, or
 						continue
 					}
 
-					cmp, err := newCol.Type.Compare(row[newColIdx], data.autoIncVal)
+					cmp, err := newCol.Type.Compare(ctx, row[newColIdx], data.autoIncVal)
 					if err != nil {
 						panic(err)
 					}
 
 					if cmp > 0 {
 						var val interface{}
-						val, _, err = types.Uint64.Convert(row[newColIdx])
+						val, _, err = types.Uint64.Convert(ctx, row[newColIdx])
 						if err != nil {
 							panic(err)
 						}
@@ -1413,7 +1413,7 @@ func (t *Table) ModifyColumn(ctx *sql.Context, columnName string, column *sql.Co
 			var oldRowWithoutVal sql.Row
 			oldRowWithoutVal = append(oldRowWithoutVal, row[:oldIdx]...)
 			oldRowWithoutVal = append(oldRowWithoutVal, row[oldIdx+1:]...)
-			newVal, inRange, err := column.Type.Convert(row[oldIdx])
+			newVal, inRange, err := column.Type.Convert(ctx, row[oldIdx])
 			if err != nil {
 				if sql.ErrNotMatchingSRID.Is(err) {
 					err = sql.ErrNotMatchingSRIDWithColName.New(columnName, err)
@@ -1734,7 +1734,7 @@ func (t *IndexedTable) PartitionRows(ctx *sql.Context, partition sql.Partition) 
 	return iter, nil
 }
 
-func (t *Table) IndexedAccess(lookup sql.IndexLookup) sql.IndexedTable {
+func (t *Table) IndexedAccess(ctx *sql.Context, lookup sql.IndexLookup) sql.IndexedTable {
 	return &IndexedTable{Table: t, Lookup: lookup}
 }
 
@@ -1971,7 +1971,7 @@ func (t *Table) DropCheck(ctx *sql.Context, chName string) error {
 	return fmt.Errorf("check '%s' was not found on the table", chName)
 }
 
-func (t *Table) createIndex(data *TableData, name string, columns []sql.IndexColumn, constraint sql.IndexConstraint, comment string) (sql.Index, error) {
+func (t *Table) createIndex(ctx *sql.Context, data *TableData, name string, columns []sql.IndexColumn, constraint sql.IndexConstraint, comment string) (sql.Index, error) {
 	if name == "" {
 		for _, column := range columns {
 			name += column.Name + "_"
@@ -2005,7 +2005,7 @@ func (t *Table) createIndex(data *TableData, name string, columns []sql.IndexCol
 	}
 
 	if constraint == sql.IndexConstraint_Unique {
-		err := data.errIfDuplicateEntryExist(colNames, name)
+		err := data.errIfDuplicateEntryExist(ctx, colNames, name)
 		if err != nil {
 			return nil, err
 		}
@@ -2041,7 +2041,7 @@ func (t *Table) CreateIndex(ctx *sql.Context, idx sql.IndexDef) error {
 		data.indexes = make(map[string]sql.Index)
 	}
 
-	index, err := t.createIndex(data, idx.Name, idx.Columns, idx.Constraint, idx.Comment)
+	index, err := t.createIndex(ctx, data, idx.Name, idx.Columns, idx.Constraint, idx.Comment)
 	if err != nil {
 		return err
 	}
@@ -2107,7 +2107,7 @@ func (t *Table) CreateFulltextIndex(ctx *sql.Context, indexDef sql.IndexDef, key
 		data.indexes = make(map[string]sql.Index)
 	}
 
-	index, err := t.createIndex(data, indexDef.Name, indexDef.Columns, indexDef.Constraint, indexDef.Comment)
+	index, err := t.createIndex(ctx, data, indexDef.Name, indexDef.Columns, indexDef.Constraint, indexDef.Comment)
 	if err != nil {
 		return err
 	}
@@ -2138,7 +2138,7 @@ func (t *Table) CreateVectorIndex(ctx *sql.Context, idx sql.IndexDef, distanceTy
 		data.indexes = make(map[string]sql.Index)
 	}
 
-	index, err := t.createIndex(data, idx.Name, idx.Columns, idx.Constraint, idx.Comment)
+	index, err := t.createIndex(ctx, data, idx.Name, idx.Columns, idx.Constraint, idx.Comment)
 	if err != nil {
 		return err
 	}
@@ -2222,6 +2222,7 @@ type partitionssort struct {
 	ps      map[string][]sql.Row
 	allRows []partitionRow
 	indexes map[indexName][]sql.Row
+	ctx     *sql.Context
 }
 
 func (ps partitionssort) Len() int {
@@ -2238,7 +2239,7 @@ func (ps partitionssort) Less(i, j int) bool {
 
 func (ps partitionssort) pkLess(l, r sql.Row) bool {
 	for _, f := range ps.pk {
-		r, err := f.c.Type.Compare(l[f.i], r[f.i])
+		r, err := f.c.Type.Compare(ps.ctx, l[f.i], r[f.i])
 		if err != nil {
 			panic(err)
 		}

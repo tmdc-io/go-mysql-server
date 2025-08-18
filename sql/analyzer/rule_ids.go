@@ -9,7 +9,7 @@ const (
 	applyDefaultSelectLimitId     RuleId = iota // applyDefaultSelectLimit
 	validateOffsetAndLimitId                    // validateOffsetAndLimit
 	validateStarExpressionsId                   // validateStarExpressions
-	validateCreateTableId                       // validateCreateTable
+	ValidateCreateTableId                       // validateCreateTable
 	validateAlterTableId                        // validateAlterTable
 	validateExprSemId                           // validateExprSem
 	loadStoredProceduresId                      // loadStoredProcedures
@@ -21,7 +21,6 @@ const (
 	resolveUnionsId                             // resolveUnions
 	ValidateColumnDefaultsId                    // validateColumnDefaults
 	validateCreateTriggerId                     // validateCreateTrigger
-	validateCreateProcedureId                   // validateCreateProcedure
 	validateReadOnlyDatabaseId                  // validateReadOnlyDatabase
 	validateReadOnlyTransactionId               // validateReadOnlyTransaction
 	validateDatabaseSetId                       // validateDatabaseSet
@@ -45,7 +44,7 @@ const (
 	finalizeUnionsId             // finalizeUnions
 	loadTriggersId               // loadTriggers
 	processTruncateId            // processTruncate
-	resolveAlterColumnId         // resolveAlterColumn
+	ResolveAlterColumnId         // ResolveAlterColumn
 	stripTableNameInDefaultsId   // stripTableNamesFromColumnDefaults
 	optimizeJoinsId              // optimizeJoins
 	pushFiltersId                // pushFilters
@@ -66,6 +65,7 @@ const (
 	assignRoutinesId             // assignRoutines
 	modifyUpdateExprsForJoinId   // modifyUpdateExprsForJoin
 	applyForeignKeysId           // applyForeignKeys
+	interpreterId                // interpreter
 
 	// validate
 	validateResolvedId          // validateResolved
@@ -81,7 +81,7 @@ const (
 	validateDeleteFromId        // validateDeleteFrom
 
 	// after all
-	cacheSubqueryAliasesInJoinsId    // cacheSubqueryAliasesInJoins
-	BacktickDefaulColumnValueNamesId // backtickDefaultColumnValueNames
-	TrackProcessId                   // trackProcess
+	cacheSubqueryAliasesInJoinsId  // cacheSubqueryAliasesInJoins
+	QuoteDefaultColumnValueNamesId // quoteDefaultColumnValueNames
+	TrackProcessId                 // trackProcess
 )
